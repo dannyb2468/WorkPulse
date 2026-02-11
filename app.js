@@ -47,6 +47,7 @@ class WorkPulseApp {
         this.setupMetrics();
         this.setupReports();
         this.setupSnapshots();
+        this.setupCommandPalette();
         this.setupAuth();
         this.handleHashNavigation();
         this.registerServiceWorker();
@@ -2632,6 +2633,159 @@ class WorkPulseApp {
 
         html += '</div>';
         container.innerHTML = html;
+    }
+
+    // ========================================
+    // Command Palette
+    // ========================================
+    setupCommandPalette() {
+        this.commandPaletteOpen = false;
+        this.commandPaletteIndex = 0;
+
+        document.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+                e.preventDefault();
+                this.commandPaletteOpen ? this.closeCommandPalette() : this.openCommandPalette();
+            }
+        });
+
+        const overlay = document.getElementById('command-palette');
+        if (overlay) {
+            overlay.addEventListener('click', (e) => {
+                if (e.target === overlay) this.closeCommandPalette();
+            });
+        }
+
+        const input = document.getElementById('command-palette-input');
+        if (input) {
+            input.addEventListener('input', () => this.filterCommands(input.value));
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') { this.closeCommandPalette(); return; }
+                if (e.key === 'ArrowDown') { e.preventDefault(); this.navigateCommand(1); }
+                if (e.key === 'ArrowUp') { e.preventDefault(); this.navigateCommand(-1); }
+                if (e.key === 'Enter') { e.preventDefault(); this.executeSelectedCommand(); }
+            });
+        }
+    }
+
+    openCommandPalette() {
+        const overlay = document.getElementById('command-palette');
+        const input = document.getElementById('command-palette-input');
+        if (!overlay) return;
+        this.commandPaletteOpen = true;
+        overlay.classList.add('active');
+        if (input) { input.value = ''; input.focus(); }
+        this.commandPaletteIndex = 0;
+        this._commandItems = this.buildCommandIndex();
+        this.renderCommandResults(this._commandItems);
+    }
+
+    closeCommandPalette() {
+        const overlay = document.getElementById('command-palette');
+        if (!overlay) return;
+        this.commandPaletteOpen = false;
+        overlay.classList.remove('active');
+    }
+
+    buildCommandIndex() {
+        const commands = [];
+        // Nav pages
+        const pages = [
+            { label: 'Go to Dashboard', icon: 'fa-tachometer-alt', keywords: 'home overview', action: () => this.navigateTo('dashboard') },
+            { label: 'Go to Projects', icon: 'fa-folder-open', keywords: 'projects list', action: () => this.navigateTo('projects') },
+            { label: 'Go to Task Board', icon: 'fa-columns', keywords: 'kanban board tasks', action: () => this.navigateTo('kanban') },
+            { label: 'Go to Activity Log', icon: 'fa-clock', keywords: 'activities journal', action: () => this.navigateTo('activity') },
+            { label: 'Go to Metrics', icon: 'fa-chart-line', keywords: 'metrics roi value', action: () => this.navigateTo('metrics') },
+            { label: 'Go to Reports', icon: 'fa-file-alt', keywords: 'reports 1:1', action: () => this.navigateTo('reports') },
+            { label: 'Go to Settings', icon: 'fa-cog', keywords: 'settings preferences', action: () => this.navigateTo('settings') },
+        ];
+        commands.push(...pages);
+
+        // Actions
+        commands.push(
+            { label: 'New Project', icon: 'fa-plus', keywords: 'create project add', action: () => this.openProjectModal(), hint: 'P' },
+            { label: 'New Task', icon: 'fa-plus', keywords: 'create task add', action: () => this.openTaskModal(), hint: 'N' },
+            { label: 'Log Activity', icon: 'fa-plus', keywords: 'create activity add log', action: () => this.openActivityModal(), hint: 'A' },
+            { label: 'Toggle Theme', icon: 'fa-adjust', keywords: 'dark light mode theme', action: () => { const next = this.data.settings.theme === 'dark' ? 'light' : 'dark'; this.data.settings.theme = next; this.applyTheme(next); this.saveData(); }, hint: 'T' },
+        );
+        if (this.auth && this.currentUser) {
+            commands.push({ label: 'Sign Out', icon: 'fa-sign-out-alt', keywords: 'logout sign out', action: () => this.handleSignOut() });
+        }
+
+        // Projects
+        this.data.projects.forEach(p => {
+            commands.push({ label: p.name, icon: 'fa-folder', keywords: `project ${(p.tags || []).join(' ')}`, action: () => this.viewProjectDetail(p.id), hint: 'Project' });
+        });
+
+        // Tasks
+        this.data.tasks.forEach(t => {
+            commands.push({ label: t.name, icon: 'fa-check-square', keywords: `task ${t.status}`, action: () => this.editTask(t.id), hint: 'Task' });
+        });
+
+        return commands;
+    }
+
+    filterCommands(query) {
+        if (!this._commandItems) return;
+        const q = query.toLowerCase().trim();
+        let filtered;
+        if (!q) {
+            filtered = this._commandItems;
+        } else {
+            filtered = this._commandItems.filter(cmd => {
+                const searchable = `${cmd.label} ${cmd.keywords || ''}`.toLowerCase();
+                return q.split(/\s+/).every(term => searchable.includes(term));
+            });
+        }
+        this.commandPaletteIndex = 0;
+        this.renderCommandResults(filtered);
+    }
+
+    renderCommandResults(items) {
+        const container = document.getElementById('command-palette-results');
+        if (!container) return;
+        this._filteredCommands = items;
+
+        if (items.length === 0) {
+            container.innerHTML = '<div class="command-palette-empty">No results found</div>';
+            return;
+        }
+
+        container.innerHTML = items.map((cmd, i) =>
+            `<div class="command-palette-item ${i === this.commandPaletteIndex ? 'selected' : ''}" data-index="${i}">
+                <i class="fas ${cmd.icon}"></i>
+                <span class="cmd-label">${this.escapeHtml(cmd.label)}</span>
+                ${cmd.hint ? `<span class="cmd-hint">${this.escapeHtml(cmd.hint)}</span>` : ''}
+            </div>`
+        ).join('');
+
+        container.querySelectorAll('.command-palette-item').forEach(el => {
+            el.addEventListener('click', () => {
+                this.commandPaletteIndex = parseInt(el.dataset.index);
+                this.executeSelectedCommand();
+            });
+        });
+    }
+
+    navigateCommand(direction) {
+        if (!this._filteredCommands || this._filteredCommands.length === 0) return;
+        this.commandPaletteIndex = Math.max(0, Math.min(this._filteredCommands.length - 1, this.commandPaletteIndex + direction));
+        const container = document.getElementById('command-palette-results');
+        if (!container) return;
+        container.querySelectorAll('.command-palette-item').forEach((el, i) => {
+            el.classList.toggle('selected', i === this.commandPaletteIndex);
+        });
+        const selected = container.querySelector('.command-palette-item.selected');
+        if (selected) selected.scrollIntoView({ block: 'nearest' });
+    }
+
+    executeSelectedCommand() {
+        if (!this._filteredCommands || this._filteredCommands.length === 0) return;
+        const cmd = this._filteredCommands[this.commandPaletteIndex];
+        if (cmd && cmd.action) {
+            this.closeCommandPalette();
+            cmd.action();
+        }
     }
 }
 
