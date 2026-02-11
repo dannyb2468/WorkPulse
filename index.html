@@ -237,13 +237,63 @@
                     <h2 class="page-title">Reports</h2>
                     <p class="page-subtitle">Generate one-on-one reports for your manager</p>
                 </div>
-            </div>
-            <div id="reports-content">
-                <div class="empty-state">
-                    <i class="fas fa-file-alt"></i>
-                    <p>Reports will be available once you have projects and activities.</p>
+                <div class="page-header-actions">
+                    <button id="print-report-btn" class="btn btn-outline" style="display:none;">
+                        <i class="fas fa-print"></i> Print
+                    </button>
+                    <button id="export-md-btn" class="btn btn-outline" style="display:none;">
+                        <i class="fas fa-file-export"></i> Markdown
+                    </button>
                 </div>
             </div>
+            <div class="report-config" id="report-config">
+                <h4 style="font-weight:700;margin-bottom:12px;"><i class="fas fa-sliders-h" style="color:var(--primary);"></i> Report Configuration</h4>
+                <div class="report-config-row">
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label class="form-label">Date Range</label>
+                        <select id="report-date-preset" class="form-select">
+                            <option value="last-week">Last Week</option>
+                            <option value="last-2-weeks" selected>Last 2 Weeks</option>
+                            <option value="last-month">Last Month</option>
+                            <option value="custom">Custom</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label class="form-label">From</label>
+                        <input type="date" id="report-date-from" class="form-input">
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label class="form-label">To</label>
+                        <input type="date" id="report-date-to" class="form-input">
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;align-self:flex-end;">
+                        <button id="generate-report-btn" class="btn btn-primary">
+                            <i class="fas fa-magic"></i> Generate Report
+                        </button>
+                    </div>
+                </div>
+                <div style="margin-top:12px;display:flex;gap:16px;flex-wrap:wrap;">
+                    <label style="font-size:0.8125rem;display:flex;align-items:center;gap:6px;cursor:pointer;">
+                        <input type="checkbox" id="report-show-completed" checked> Completed Work
+                    </label>
+                    <label style="font-size:0.8125rem;display:flex;align-items:center;gap:6px;cursor:pointer;">
+                        <input type="checkbox" id="report-show-progress" checked> In Progress
+                    </label>
+                    <label style="font-size:0.8125rem;display:flex;align-items:center;gap:6px;cursor:pointer;">
+                        <input type="checkbox" id="report-show-upcoming" checked> Coming Up
+                    </label>
+                    <label style="font-size:0.8125rem;display:flex;align-items:center;gap:6px;cursor:pointer;">
+                        <input type="checkbox" id="report-show-blockers" checked> Blockers
+                    </label>
+                    <label style="font-size:0.8125rem;display:flex;align-items:center;gap:6px;cursor:pointer;">
+                        <input type="checkbox" id="report-show-activities" checked> Activity Highlights
+                    </label>
+                    <label style="font-size:0.8125rem;display:flex;align-items:center;gap:6px;cursor:pointer;">
+                        <input type="checkbox" id="report-show-metrics" checked> Value Delivered
+                    </label>
+                </div>
+            </div>
+            <div id="report-preview-area"></div>
         </section>
 
         <!-- Settings Page -->

@@ -45,6 +45,7 @@ class WorkPulseApp {
         this.setupKanban();
         this.setupActivities();
         this.setupMetrics();
+        this.setupReports();
         this.setupAuth();
         this.handleHashNavigation();
         this.registerServiceWorker();
@@ -1953,10 +1954,328 @@ class WorkPulseApp {
     }
 
     // ========================================
+    // Reports
+    // ========================================
+    setupReports() {
+        const genBtn = document.getElementById('generate-report-btn');
+        if (genBtn) genBtn.addEventListener('click', () => this.generateReport());
+
+        const printBtn = document.getElementById('print-report-btn');
+        if (printBtn) printBtn.addEventListener('click', () => this.printReport());
+
+        const mdBtn = document.getElementById('export-md-btn');
+        if (mdBtn) mdBtn.addEventListener('click', () => this.exportReportMarkdown());
+
+        const preset = document.getElementById('report-date-preset');
+        if (preset) preset.addEventListener('change', () => this.updateReportDates());
+    }
+
+    updateReportDates() {
+        const preset = document.getElementById('report-date-preset').value;
+        const fromField = document.getElementById('report-date-from');
+        const toField = document.getElementById('report-date-to');
+        const today = new Date();
+        let from, to = today;
+
+        switch (preset) {
+            case 'last-week':
+                from = new Date(today);
+                from.setDate(today.getDate() - 7);
+                break;
+            case 'last-2-weeks':
+                from = new Date(today);
+                from.setDate(today.getDate() - 14);
+                break;
+            case 'last-month':
+                from = new Date(today);
+                from.setMonth(today.getMonth() - 1);
+                break;
+            case 'custom':
+                return; // Don't auto-set
+        }
+
+        if (fromField) fromField.value = this.toLocalDateString(from);
+        if (toField) toField.value = this.toLocalDateString(to);
+    }
+
+    getCompletedInRange(from, to) {
+        return this.data.tasks.filter(t =>
+            t.status === 'done' && t.completedAt &&
+            t.completedAt >= from && t.completedAt <= to + 'T23:59:59'
+        );
+    }
+
+    getInProgressItems() {
+        return this.data.tasks.filter(t => t.status === 'in-progress' || t.status === 'this-week');
+    }
+
+    getUpcomingItems() {
+        return this.data.tasks.filter(t =>
+            t.status === 'backlog' && t.dueDate
+        ).sort((a, b) => a.dueDate.localeCompare(b.dueDate)).slice(0, 10);
+    }
+
+    getBlockers() {
+        return this.data.tasks.filter(t => t.status === 'blocked');
+    }
+
+    getActivitiesInRange(from, to) {
+        return this.data.activities.filter(a =>
+            a.date >= from && a.date <= to
+        ).sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || ''));
+    }
+
+    getMetricsSummary() {
+        return this.data.metrics.map(m => {
+            const project = this.getProject(m.projectId);
+            return {
+                ...m,
+                projectName: project?.name || 'Unknown',
+                weekSaved: this.calculateHoursSavedPerWeek(m),
+                yearSaved: this.calculateHoursSavedPerYear(m),
+                roi: this.calculateROI(m)
+            };
+        }).filter(m => m.weekSaved > 0);
+    }
+
+    generateReport() {
+        const from = document.getElementById('report-date-from').value;
+        const to = document.getElementById('report-date-to').value;
+        if (!from || !to) {
+            this.updateReportDates();
+            setTimeout(() => this.generateReport(), 50);
+            return;
+        }
+
+        const showCompleted = document.getElementById('report-show-completed').checked;
+        const showProgress = document.getElementById('report-show-progress').checked;
+        const showUpcoming = document.getElementById('report-show-upcoming').checked;
+        const showBlockers = document.getElementById('report-show-blockers').checked;
+        const showActivities = document.getElementById('report-show-activities').checked;
+        const showMetrics = document.getElementById('report-show-metrics').checked;
+
+        const previewArea = document.getElementById('report-preview-area');
+        const printBtn = document.getElementById('print-report-btn');
+        const mdBtn = document.getElementById('export-md-btn');
+
+        let html = '<div class="report-preview" id="report-preview">';
+
+        // Header
+        const userName = this.data.settings.userName || 'Team Member';
+        const bossName = this.data.settings.bossName;
+        html += `<div style="margin-bottom:24px;">
+            <h2 style="font-size:1.5rem;font-weight:700;">Status Update</h2>
+            <p style="color:var(--text-secondary);">${this.escapeHtml(userName)}${bossName ? ` &rarr; ${this.escapeHtml(bossName)}` : ''}</p>
+            <p style="color:var(--text-muted);font-size:0.8125rem;">${this.formatDate(from)} &ndash; ${this.formatDate(to)}</p>
+        </div>`;
+
+        // Completed
+        if (showCompleted) {
+            const completed = this.getCompletedInRange(from, to);
+            html += '<div class="report-section">';
+            html += '<div class="report-section-title"><i class="fas fa-check-circle" style="color:var(--success);"></i> Completed</div>';
+            if (completed.length === 0) {
+                html += '<p style="color:var(--text-muted);font-size:0.875rem;">No tasks completed in this period.</p>';
+            } else {
+                const byProject = {};
+                completed.forEach(t => {
+                    const pName = this.getProject(t.projectId)?.name || 'No Project';
+                    if (!byProject[pName]) byProject[pName] = [];
+                    byProject[pName].push(t);
+                });
+                for (const [pName, tasks] of Object.entries(byProject)) {
+                    html += `<p style="font-weight:600;margin:8px 0 4px;font-size:0.875rem;">${this.escapeHtml(pName)}</p>`;
+                    tasks.forEach(t => {
+                        html += `<div class="report-item"><i class="fas fa-check" style="color:var(--success);margin-top:2px;"></i> ${this.escapeHtml(t.name)}</div>`;
+                    });
+                }
+            }
+            html += '</div>';
+        }
+
+        // In Progress
+        if (showProgress) {
+            const inProgress = this.getInProgressItems();
+            html += '<div class="report-section">';
+            html += '<div class="report-section-title"><i class="fas fa-spinner" style="color:var(--primary);"></i> In Progress</div>';
+            if (inProgress.length === 0) {
+                html += '<p style="color:var(--text-muted);font-size:0.875rem;">No tasks currently in progress.</p>';
+            } else {
+                inProgress.forEach(t => {
+                    const project = this.getProject(t.projectId);
+                    html += `<div class="report-item"><i class="fas fa-arrow-right" style="color:var(--primary);margin-top:2px;"></i>
+                        <span>${this.escapeHtml(t.name)} ${project ? `<span class="tag">${this.escapeHtml(project.name)}</span>` : ''}</span></div>`;
+                });
+            }
+            html += '</div>';
+        }
+
+        // Coming Up
+        if (showUpcoming) {
+            const upcoming = this.getUpcomingItems();
+            if (upcoming.length > 0) {
+                html += '<div class="report-section">';
+                html += '<div class="report-section-title"><i class="fas fa-calendar" style="color:var(--info);"></i> Coming Up</div>';
+                upcoming.forEach(t => {
+                    html += `<div class="report-item"><i class="fas fa-circle" style="color:var(--info);font-size:0.5rem;margin-top:6px;"></i>
+                        <span>${this.escapeHtml(t.name)} <span style="color:var(--text-muted);font-size:0.75rem;">(due ${this.formatDateShort(t.dueDate)})</span></span></div>`;
+                });
+                html += '</div>';
+            }
+        }
+
+        // Blockers
+        if (showBlockers) {
+            const blockers = this.getBlockers();
+            if (blockers.length > 0) {
+                html += '<div class="report-section">';
+                html += '<div class="report-section-title"><i class="fas fa-exclamation-triangle" style="color:var(--danger);"></i> Blockers</div>';
+                blockers.forEach(t => {
+                    html += `<div class="report-blocker"><strong>${this.escapeHtml(t.name)}</strong>
+                        ${t.blockerNote ? `<br><span style="font-size:0.8125rem;">${this.escapeHtml(t.blockerNote)}</span>` : ''}</div>`;
+                });
+                html += '</div>';
+            }
+        }
+
+        // Activity Highlights
+        if (showActivities) {
+            const activities = this.getActivitiesInRange(from, to).slice(0, 15);
+            if (activities.length > 0) {
+                html += '<div class="report-section">';
+                html += '<div class="report-section-title"><i class="fas fa-clock" style="color:var(--accent);"></i> Activity Highlights</div>';
+                activities.forEach(a => {
+                    const project = a.projectId ? this.getProject(a.projectId) : null;
+                    html += `<div class="report-item"><span class="category-badge ${a.category}" style="margin-top:2px;">${this.escapeHtml(a.category)}</span>
+                        <span>${this.escapeHtml(a.entry)} ${project ? `<span class="tag">${this.escapeHtml(project.name)}</span>` : ''}
+                        <span style="color:var(--text-muted);font-size:0.75rem;">${this.formatDateShort(a.date)}</span></span></div>`;
+                });
+                html += '</div>';
+            }
+        }
+
+        // Value Delivered
+        if (showMetrics) {
+            const metricsSummary = this.getMetricsSummary();
+            if (metricsSummary.length > 0) {
+                const cum = this.getCumulativeMetrics();
+                html += '<div class="report-section">';
+                html += '<div class="report-section-title"><i class="fas fa-chart-line" style="color:var(--accent);"></i> Value Delivered</div>';
+                html += `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-bottom:12px;">
+                    <div class="stat-card" style="padding:12px;"><div class="stat-value" style="font-size:1.25rem;">${cum.totalSavedWeek.toFixed(1)}h</div><div class="stat-label">saved/week</div></div>
+                    <div class="stat-card" style="padding:12px;"><div class="stat-value" style="font-size:1.25rem;">${cum.totalSavedYear.toFixed(0)}h</div><div class="stat-label">saved/year</div></div>
+                    <div class="stat-card" style="padding:12px;"><div class="stat-value" style="font-size:1.25rem;">${cum.totalPeople}</div><div class="stat-label">people impacted</div></div>
+                </div>`;
+                metricsSummary.forEach(m => {
+                    html += `<div class="report-item"><i class="fas fa-robot" style="color:var(--primary);margin-top:2px;"></i>
+                        <span><strong>${this.escapeHtml(m.projectName)}</strong>: ${m.weekSaved.toFixed(1)}h/week saved (${(m.roi * 100).toFixed(0)}% ROI)</span></div>`;
+                });
+                html += '</div>';
+            }
+        }
+
+        html += '</div>';
+        if (previewArea) previewArea.innerHTML = html;
+        if (printBtn) printBtn.style.display = 'inline-flex';
+        if (mdBtn) mdBtn.style.display = 'inline-flex';
+
+        this._lastReport = { from, to, showCompleted, showProgress, showUpcoming, showBlockers, showActivities, showMetrics };
+    }
+
+    printReport() {
+        window.print();
+    }
+
+    exportReportMarkdown() {
+        if (!this._lastReport) return;
+        const { from, to } = this._lastReport;
+        const userName = this.data.settings.userName || 'Team Member';
+
+        let md = `# Status Update\n**${userName}** | ${this.formatDate(from)} - ${this.formatDate(to)}\n\n`;
+
+        if (this._lastReport.showCompleted) {
+            const completed = this.getCompletedInRange(from, to);
+            md += '## Completed\n';
+            if (completed.length === 0) {
+                md += '_No tasks completed in this period._\n\n';
+            } else {
+                const byProject = {};
+                completed.forEach(t => {
+                    const pName = this.getProject(t.projectId)?.name || 'No Project';
+                    if (!byProject[pName]) byProject[pName] = [];
+                    byProject[pName].push(t);
+                });
+                for (const [pName, tasks] of Object.entries(byProject)) {
+                    md += `\n**${pName}**\n`;
+                    tasks.forEach(t => { md += `- ${t.name}\n`; });
+                }
+                md += '\n';
+            }
+        }
+
+        if (this._lastReport.showProgress) {
+            const inProgress = this.getInProgressItems();
+            md += '## In Progress\n';
+            inProgress.forEach(t => {
+                const project = this.getProject(t.projectId);
+                md += `- ${t.name}${project ? ` (${project.name})` : ''}\n`;
+            });
+            md += '\n';
+        }
+
+        if (this._lastReport.showBlockers) {
+            const blockers = this.getBlockers();
+            if (blockers.length > 0) {
+                md += '## Blockers\n';
+                blockers.forEach(t => {
+                    md += `- **${t.name}**${t.blockerNote ? `: ${t.blockerNote}` : ''}\n`;
+                });
+                md += '\n';
+            }
+        }
+
+        if (this._lastReport.showActivities) {
+            const activities = this.getActivitiesInRange(from, to).slice(0, 15);
+            if (activities.length > 0) {
+                md += '## Activity Highlights\n';
+                activities.forEach(a => {
+                    md += `- [${a.category}] ${a.entry} (${this.formatDateShort(a.date)})\n`;
+                });
+                md += '\n';
+            }
+        }
+
+        if (this._lastReport.showMetrics) {
+            const metricsSummary = this.getMetricsSummary();
+            if (metricsSummary.length > 0) {
+                const cum = this.getCumulativeMetrics();
+                md += '## Value Delivered\n';
+                md += `- **${cum.totalSavedWeek.toFixed(1)}h** saved/week | **${cum.totalSavedYear.toFixed(0)}h** saved/year | **${cum.totalPeople}** people impacted\n`;
+                metricsSummary.forEach(m => {
+                    md += `- ${m.projectName}: ${m.weekSaved.toFixed(1)}h/week saved (${(m.roi * 100).toFixed(0)}% ROI)\n`;
+                });
+                md += '\n';
+            }
+        }
+
+        const blob = new Blob([md], { type: 'text/markdown' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `status-update-${from}-to-${to}.md`;
+        a.click();
+        URL.revokeObjectURL(url);
+        this.showToast('Markdown exported', 'success');
+    }
+
+    renderReports() {
+        this.updateReportDates();
+    }
+
+    // ========================================
     // Page Renders (stubs)
     // ========================================
     renderDashboard() {}
-    renderReports() {}
 }
 
 // Initialize app
