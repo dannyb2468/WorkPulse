@@ -2273,9 +2273,242 @@ class WorkPulseApp {
     }
 
     // ========================================
-    // Page Renders (stubs)
+    // Dashboard
     // ========================================
-    renderDashboard() {}
+    renderDashboard() {
+        this.renderDashboardGreeting();
+        this.renderDashboardStats();
+        this.renderActiveProjects();
+        this.renderTaskCompletionChart();
+        this.renderHoursSavedChart();
+        this.renderRecentActivityFeed();
+        this.renderUpcomingDeadlines();
+    }
+
+    renderDashboardGreeting() {
+        const el = document.getElementById('dashboard-greeting');
+        if (!el) return;
+        const hour = new Date().getHours();
+        const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+        const name = this.data.settings.userName;
+        el.textContent = name ? `${greeting}, ${name}` : greeting;
+    }
+
+    renderDashboardStats() {
+        const container = document.getElementById('dashboard-stats');
+        if (!container) return;
+
+        const activeProjects = this.data.projects.filter(p => p.status === 'active').length;
+        const inProgressTasks = this.data.tasks.filter(t => t.status === 'in-progress').length;
+        const blockedTasks = this.data.tasks.filter(t => t.status === 'blocked').length;
+        const cum = this.data.metrics.length > 0 ? this.getCumulativeMetrics() : { totalSavedWeek: 0 };
+
+        container.innerHTML = `
+            <div class="stat-card">
+                <div class="stat-icon primary"><i class="fas fa-folder-open"></i></div>
+                <div><div class="stat-value">${activeProjects}</div><div class="stat-label">Active Projects</div></div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon info"><i class="fas fa-play-circle"></i></div>
+                <div><div class="stat-value">${inProgressTasks}</div><div class="stat-label">In Progress</div></div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon danger"><i class="fas fa-exclamation-triangle"></i></div>
+                <div><div class="stat-value">${blockedTasks}</div><div class="stat-label">Blocked</div></div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon success"><i class="fas fa-clock"></i></div>
+                <div><div class="stat-value">${cum.totalSavedWeek.toFixed(1)}h</div><div class="stat-label">Hours Saved/Week</div></div>
+            </div>
+        `;
+    }
+
+    renderActiveProjects() {
+        const container = document.getElementById('dashboard-active-projects');
+        if (!container) return;
+
+        const active = this.data.projects.filter(p => p.status === 'active').slice(0, 5);
+        if (active.length === 0) {
+            container.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:20px;font-size:0.875rem;">No active projects</p>';
+            return;
+        }
+
+        container.innerHTML = active.map(p => {
+            const tasks = this.data.tasks.filter(t => t.projectId === p.id);
+            const done = tasks.filter(t => t.status === 'done').length;
+            const pct = tasks.length > 0 ? Math.round((done / tasks.length) * 100) : 0;
+            return `<div style="display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--border);">
+                <div style="width:8px;height:8px;border-radius:50%;background:${this.escapeHtml(p.color || '#0d9488')};flex-shrink:0;"></div>
+                <div style="flex:1;min-width:0;">
+                    <div style="font-weight:600;font-size:0.875rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${this.escapeHtml(p.name)}</div>
+                    <div style="font-size:0.75rem;color:var(--text-muted);">${done}/${tasks.length} tasks done</div>
+                </div>
+                <div style="font-weight:700;font-size:0.875rem;color:var(--primary);">${pct}%</div>
+            </div>`;
+        }).join('');
+    }
+
+    renderTaskCompletionChart() {
+        const canvas = document.getElementById('chart-task-completion');
+        if (!canvas) return;
+
+        const statusCounts = {
+            backlog: this.data.tasks.filter(t => t.status === 'backlog').length,
+            'this-week': this.data.tasks.filter(t => t.status === 'this-week').length,
+            'in-progress': this.data.tasks.filter(t => t.status === 'in-progress').length,
+            blocked: this.data.tasks.filter(t => t.status === 'blocked').length,
+            done: this.data.tasks.filter(t => t.status === 'done').length
+        };
+
+        const isDark = this.data.settings.theme === 'dark';
+        const textColor = isDark ? '#94a3b8' : '#64748b';
+        const gridColor = isDark ? '#334155' : '#e2e8f0';
+
+        const data = {
+            labels: ['Backlog', 'This Week', 'In Progress', 'Blocked', 'Done'],
+            datasets: [{
+                data: Object.values(statusCounts),
+                backgroundColor: ['#94a3b8', '#2563eb', '#0d9488', '#dc2626', '#16a34a'],
+                borderRadius: 6,
+                borderWidth: 0
+            }]
+        };
+
+        const options = {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                y: { beginAtZero: true, ticks: { color: textColor, stepSize: 1 }, grid: { color: gridColor } },
+                x: { ticks: { color: textColor, font: { size: 10 } }, grid: { display: false } }
+            }
+        };
+
+        if (this.charts.taskCompletion) {
+            this.charts.taskCompletion.data = data;
+            this.charts.taskCompletion.options = options;
+            this.charts.taskCompletion.update();
+        } else {
+            this.charts.taskCompletion = new Chart(canvas, { type: 'bar', data, options });
+        }
+    }
+
+    renderHoursSavedChart() {
+        const canvas = document.getElementById('chart-hours-saved');
+        if (!canvas) return;
+
+        // Generate last 8 weeks data
+        const weeks = [];
+        const today = new Date();
+        for (let i = 7; i >= 0; i--) {
+            const d = new Date(today);
+            d.setDate(d.getDate() - i * 7);
+            const bounds = this.getWeekBounds(d);
+            const label = this.formatDateShort(this.toLocalDateString(bounds.start));
+            // Cumulative hours saved is constant per week (same metrics)
+            const cum = this.data.metrics.length > 0 ? this.getCumulativeMetrics() : { totalSavedWeek: 0 };
+            weeks.push({ label, value: cum.totalSavedWeek * (8 - i) });
+        }
+
+        const isDark = this.data.settings.theme === 'dark';
+        const textColor = isDark ? '#94a3b8' : '#64748b';
+        const gridColor = isDark ? '#334155' : '#e2e8f0';
+
+        const data = {
+            labels: weeks.map(w => w.label),
+            datasets: [{
+                label: 'Cumulative Hours Saved',
+                data: weeks.map(w => parseFloat(w.value.toFixed(1))),
+                borderColor: '#0d9488',
+                backgroundColor: 'rgba(13, 148, 136, 0.1)',
+                fill: true,
+                tension: 0.4,
+                pointRadius: 3,
+                pointBackgroundColor: '#0d9488'
+            }]
+        };
+
+        const options = {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                y: { beginAtZero: true, ticks: { color: textColor }, grid: { color: gridColor } },
+                x: { ticks: { color: textColor, font: { size: 10 } }, grid: { display: false } }
+            }
+        };
+
+        if (this.charts.hoursSaved) {
+            this.charts.hoursSaved.data = data;
+            this.charts.hoursSaved.options = options;
+            this.charts.hoursSaved.update();
+        } else {
+            this.charts.hoursSaved = new Chart(canvas, { type: 'line', data, options });
+        }
+    }
+
+    renderRecentActivityFeed() {
+        const container = document.getElementById('dashboard-recent-activity');
+        if (!container) return;
+
+        const recent = [...this.data.activities]
+            .sort((a, b) => (b.timestamp || b.createdAt || '').localeCompare(a.timestamp || a.createdAt || ''))
+            .slice(0, 8);
+
+        if (recent.length === 0) {
+            container.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:20px;font-size:0.875rem;">No recent activity</p>';
+            return;
+        }
+
+        const categoryIcons = {
+            build: 'fa-hammer', deploy: 'fa-rocket', meeting: 'fa-users',
+            research: 'fa-microscope', support: 'fa-headset', other: 'fa-circle'
+        };
+
+        container.innerHTML = recent.map(a => {
+            const icon = categoryIcons[a.category] || 'fa-circle';
+            return `<div style="display:flex;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);font-size:0.8125rem;">
+                <span class="category-badge ${a.category}" style="flex-shrink:0;margin-top:2px;"><i class="fas ${icon}"></i></span>
+                <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${this.escapeHtml(a.entry)}</span>
+                <span style="color:var(--text-muted);flex-shrink:0;font-size:0.75rem;">${this.getRelativeDate(a.date)}</span>
+            </div>`;
+        }).join('');
+    }
+
+    renderUpcomingDeadlines() {
+        const container = document.getElementById('dashboard-deadlines');
+        if (!container) return;
+
+        const upcoming = this.data.tasks
+            .filter(t => t.dueDate && t.status !== 'done')
+            .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
+            .slice(0, 5);
+
+        if (upcoming.length === 0) {
+            container.innerHTML = '';
+            return;
+        }
+
+        let html = `<div class="card"><h3 class="card-title"><i class="fas fa-calendar-alt"></i> Upcoming Deadlines</h3>`;
+        upcoming.forEach(t => {
+            const urgency = this.getDueUrgency(t.dueDate);
+            const project = this.getProject(t.projectId);
+            html += `<div style="display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--border);">
+                <span class="status-dot ${t.status}"></span>
+                <div style="flex:1;min-width:0;">
+                    <div style="font-weight:600;font-size:0.875rem;">${this.escapeHtml(t.name)}</div>
+                    ${project ? `<div style="font-size:0.75rem;color:var(--text-muted);">${this.escapeHtml(project.name)}</div>` : ''}
+                </div>
+                <span class="task-due-date ${urgency}">${this.formatDateShort(t.dueDate)}</span>
+            </div>`;
+        });
+        html += '</div>';
+        container.innerHTML = html;
+    }
 }
 
 // Initialize app

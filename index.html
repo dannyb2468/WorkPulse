@@ -87,20 +87,34 @@
         <section id="page-dashboard" class="page active">
             <div class="page-header">
                 <div>
-                    <h2 class="page-title">Dashboard</h2>
+                    <h2 id="dashboard-greeting" class="page-title">Dashboard</h2>
                     <p class="page-subtitle">Your work at a glance</p>
                 </div>
                 <button id="theme-toggle" class="btn-icon" aria-label="Toggle theme">
                     <i class="fas fa-moon"></i>
                 </button>
             </div>
+            <div id="dashboard-stats" class="stat-grid"></div>
             <div id="dashboard-content" class="dashboard-grid">
-                <div class="empty-state">
-                    <i class="fas fa-tachometer-alt"></i>
-                    <p>Dashboard will show your stats, charts, and recent activity.</p>
-                    <p>Start by adding some projects!</p>
+                <div class="card">
+                    <h3 class="card-title"><i class="fas fa-folder-open"></i> Active Projects</h3>
+                    <div id="dashboard-active-projects"></div>
+                </div>
+                <div class="card">
+                    <h3 class="card-title"><i class="fas fa-tasks"></i> Task Completion</h3>
+                    <div class="chart-container"><canvas id="chart-task-completion"></canvas></div>
+                </div>
+                <div class="card">
+                    <h3 class="card-title"><i class="fas fa-clock"></i> Hours Saved</h3>
+                    <div class="chart-container"><canvas id="chart-hours-saved"></canvas></div>
+                </div>
+                <div class="card">
+                    <h3 class="card-title"><i class="fas fa-stream"></i> Recent Activity</h3>
+                    <div id="dashboard-recent-activity"></div>
                 </div>
             </div>
+            <div id="dashboard-deadlines" style="margin-top:20px;"></div>
+            <div id="dashboard-snapshot" style="margin-top:20px;"></div>
         </section>
 
         <!-- Projects Page -->
