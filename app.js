@@ -1448,9 +1448,18 @@ class WorkPulseApp {
         const quickSubmit = document.getElementById('quick-activity-submit');
         if (quickSubmit) quickSubmit.addEventListener('click', () => this.quickAddActivity());
         const quickInput = document.getElementById('quick-activity-input');
-        if (quickInput) quickInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') this.quickAddActivity();
-        });
+        if (quickInput) {
+            quickInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') this.quickAddActivity();
+            });
+            quickInput.addEventListener('input', () => {
+                const detected = this.detectCategory(quickInput.value);
+                const category = document.getElementById('quick-activity-category');
+                if (detected && category && category.value === 'other') {
+                    category.value = detected;
+                }
+            });
+        }
 
         // Filters
         ['activity-project-filter', 'activity-category-filter', 'activity-date-from', 'activity-date-to'].forEach(id => {
@@ -1511,8 +1520,15 @@ class WorkPulseApp {
             title.textContent = 'Log Activity';
             idField.value = '';
             entryField.value = '';
-            projectField.value = '';
-            taskField.innerHTML = '<option value="">No task</option>';
+            const lastProject = this.getLastUsedProject();
+            projectField.value = lastProject || '';
+            if (lastProject) {
+                const tasks = this.data.tasks.filter(t => t.projectId === lastProject);
+                taskField.innerHTML = '<option value="">No task</option>' +
+                    tasks.map(t => `<option value="${this.escapeHtml(t.id)}">${this.escapeHtml(t.name)}</option>`).join('');
+            } else {
+                taskField.innerHTML = '<option value="">No task</option>';
+            }
             categoryField.value = 'other';
             dateField.value = this.toLocalDateString();
             tagsField.value = '';
@@ -1571,13 +1587,17 @@ class WorkPulseApp {
         const entry = input?.value.trim();
         if (!entry) return;
 
+        const detected = this.detectCategory(entry);
+        const finalCategory = category?.value !== 'other' ? category?.value : detected;
+        const lastProject = this.getLastUsedProject();
+
         const now = new Date().toISOString();
         this.data.activities.push({
             id: this.generateId(),
             entry,
-            projectId: null,
+            projectId: lastProject,
             taskId: null,
-            category: category?.value || 'other',
+            category: finalCategory || 'other',
             date: this.toLocalDateString(),
             tags: [],
             timestamp: now,
@@ -2760,6 +2780,35 @@ class WorkPulseApp {
 
         html += '</div>';
         container.innerHTML = html;
+    }
+
+    // ========================================
+    // Smart Activity Defaults
+    // ========================================
+    detectCategory(text) {
+        if (!text) return null;
+        const lower = text.toLowerCase();
+        const patterns = {
+            deploy: ['deploy', 'release', 'ship', 'push to prod', 'go live', 'launch'],
+            meeting: ['meet', 'standup', 'sync', '1:1', 'one-on-one', 'huddle', 'retro', 'planning'],
+            research: ['research', 'investigate', 'explore', 'spike', 'prototype', 'evaluate', 'analyze'],
+            support: ['fix', 'debug', 'support', 'ticket', 'incident', 'hotfix', 'troubleshoot', 'bug'],
+            build: ['build', 'develop', 'code', 'implement', 'create', 'refactor', 'write', 'feature']
+        };
+        for (const [category, keywords] of Object.entries(patterns)) {
+            if (keywords.some(k => lower.includes(k))) return category;
+        }
+        return null;
+    }
+
+    getLastUsedProject() {
+        const cutoff = new Date();
+        cutoff.setDate(cutoff.getDate() - 7);
+        const cutoffStr = this.toLocalDateString(cutoff);
+        const recent = this.data.activities
+            .filter(a => a.projectId && a.date >= cutoffStr)
+            .sort((a, b) => (b.timestamp || b.createdAt || '').localeCompare(a.timestamp || a.createdAt || ''));
+        return recent.length > 0 ? recent[0].projectId : null;
     }
 
     // ========================================
