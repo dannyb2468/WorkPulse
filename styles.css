@@ -111,7 +111,7 @@ body {
     left: 0;
     width: var(--sidebar-width);
     height: 100vh;
-    background: var(--sidebar-bg);
+    background: linear-gradient(180deg, #0f2937 0%, #0c2230 100%);
     color: var(--sidebar-text);
     display: flex;
     flex-direction: column;
@@ -239,8 +239,9 @@ body {
 .main-content {
     margin-left: var(--sidebar-width);
     flex: 1;
-    padding: 32px;
+    padding: 32px 40px;
     min-height: 100vh;
+    max-width: calc(1280px + var(--sidebar-width));
 }
 
 .page {
@@ -320,6 +321,12 @@ body {
     display: flex;
     align-items: center;
     gap: 16px;
+    box-shadow: var(--shadow-sm);
+    transition: box-shadow var(--transition);
+}
+
+.stat-card:hover {
+    box-shadow: var(--shadow);
 }
 
 .stat-icon {
@@ -574,6 +581,10 @@ body {
     margin-bottom: 20px;
     flex-wrap: wrap;
     align-items: center;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 14px 18px;
 }
 
 .filter-bar .form-select,
@@ -609,6 +620,10 @@ body {
     gap: 8px;
     margin-bottom: 20px;
     align-items: center;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 14px 18px;
 }
 
 .quick-add-bar .form-input {
@@ -625,7 +640,7 @@ body {
    ======================================== */
 .dashboard-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    grid-template-columns: repeat(2, 1fr);
     gap: 20px;
     align-items: start;
 }
@@ -713,6 +728,12 @@ body {
 .project-card-actions {
     display: flex;
     gap: 4px;
+    opacity: 0;
+    transition: opacity var(--transition);
+}
+
+.project-card:hover .project-card-actions {
+    opacity: 1;
 }
 
 /* ========================================
@@ -792,12 +813,13 @@ body {
 .kanban-column {
     flex: 0 0 260px;
     min-width: 260px;
-    background: var(--bg);
+    background: var(--bg-card);
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);
     display: flex;
     flex-direction: column;
     max-height: calc(100vh - 180px);
+    box-shadow: var(--shadow-sm);
 }
 
 .kanban-column-header {
@@ -836,6 +858,8 @@ body {
     flex-direction: column;
     gap: 8px;
     min-height: 60px;
+    background: var(--bg);
+    border-radius: 0 0 var(--radius-lg) var(--radius-lg);
 }
 
 .kanban-column-body.drag-over {
@@ -980,6 +1004,12 @@ body {
     padding: 20px;
     position: relative;
     overflow: hidden;
+    box-shadow: var(--shadow-sm);
+    transition: box-shadow var(--transition);
+}
+
+.metric-card:hover {
+    box-shadow: var(--shadow-md);
 }
 
 .metric-card-header {
@@ -1054,6 +1084,10 @@ body {
     gap: 12px;
     flex-wrap: wrap;
     align-items: flex-end;
+}
+
+.report-config-row .form-group {
+    margin-bottom: 0;
 }
 
 .report-preview {
@@ -1209,6 +1243,9 @@ body {
     text-align: center;
     color: var(--text-muted);
     grid-column: 1 / -1;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
 }
 
 .empty-state i {
@@ -1394,6 +1431,59 @@ body {
 }
 
 /* ========================================
+   Dashboard Sections
+   ======================================== */
+.dashboard-section {
+    margin-top: 24px;
+}
+
+/* ========================================
+   Report Config Checkboxes
+   ======================================== */
+.report-config-title {
+    font-weight: 700;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.report-config-title i {
+    color: var(--primary);
+}
+
+.report-config-toggles {
+    margin-top: 12px;
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.report-toggle-label {
+    font-size: 0.8125rem;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    color: var(--text);
+    transition: color var(--transition);
+}
+
+.report-toggle-label:hover {
+    color: var(--primary);
+}
+
+/* ========================================
+   Empty State Card Wrapper
+   ======================================== */
+.empty-state-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    grid-column: 1 / -1;
+}
+
+/* ========================================
    Chart Containers
    ======================================== */
 .chart-container {
@@ -1437,7 +1527,7 @@ body {
    ======================================== */
 @media (max-width: 1200px) {
     .dashboard-grid {
-        grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+        grid-template-columns: 1fr;
     }
 
     .kanban-column {
