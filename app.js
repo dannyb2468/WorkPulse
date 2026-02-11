@@ -20,6 +20,11 @@ class WorkPulseApp {
         this.confirmCallback = null;
         this.focusTrapElements = [];
         this.previousFocus = null;
+        this.firebaseApp = null;
+        this.auth = null;
+        this.firestore = null;
+        this.currentUser = null;
+        this.syncTimeout = null;
         this.init();
     }
 
@@ -35,6 +40,7 @@ class WorkPulseApp {
         this.setupThemeToggle();
         this.setupSettings();
         this.setupExportImport();
+        this.setupAuth();
         this.handleHashNavigation();
         this.registerServiceWorker();
         window.addEventListener('hashchange', () => this.handleHashNavigation());
@@ -60,7 +66,8 @@ class WorkPulseApp {
         try {
             localStorage.setItem('workpulse-data', JSON.stringify(this.data));
             if (this.firestore && this.currentUser) {
-                this.syncToCloud();
+                clearTimeout(this.syncTimeout);
+                this.syncTimeout = setTimeout(() => this.syncToCloud(), 2000);
             }
         } catch (e) {
             console.error('Failed to save data:', e);
@@ -487,6 +494,275 @@ class WorkPulseApp {
         };
         reader.readAsText(file);
         e.target.value = '';
+    }
+
+    // ========================================
+    // Firebase Auth & Sync
+    // ========================================
+    setupAuth() {
+        const initFirebase = () => {
+            if (!window.firebaseModules) return;
+            const fm = window.firebaseModules;
+
+            // Firebase config - replace with your project's config
+            const firebaseConfig = {
+                apiKey: "YOUR_API_KEY",
+                authDomain: "YOUR_PROJECT.firebaseapp.com",
+                projectId: "YOUR_PROJECT_ID",
+                storageBucket: "YOUR_PROJECT.appspot.com",
+                messagingSenderId: "YOUR_SENDER_ID",
+                appId: "YOUR_APP_ID"
+            };
+
+            // Only init if config is set
+            if (firebaseConfig.apiKey === 'YOUR_API_KEY') {
+                console.log('Firebase not configured. Cloud sync disabled.');
+                return;
+            }
+
+            try {
+                this.firebaseApp = fm.initializeApp(firebaseConfig);
+                this.auth = fm.getAuth(this.firebaseApp);
+                this.firestore = fm.getFirestore(this.firebaseApp);
+
+                fm.onAuthStateChanged(this.auth, (user) => this.handleAuth(user));
+            } catch (e) {
+                console.error('Firebase init failed:', e);
+            }
+        };
+
+        if (window.firebaseModules) {
+            initFirebase();
+        } else {
+            window.addEventListener('firebase-ready', initFirebase);
+        }
+
+        // Sign in button
+        const signInBtn = document.getElementById('sign-in-btn');
+        if (signInBtn) signInBtn.addEventListener('click', () => this.openModal('auth-modal'));
+
+        // Google sign in
+        const googleBtn = document.getElementById('google-sign-in-btn');
+        if (googleBtn) googleBtn.addEventListener('click', () => this.handleGoogleSignIn());
+
+        // Email form
+        const emailForm = document.getElementById('auth-email-form');
+        if (emailForm) emailForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.handleEmailSignIn();
+        });
+
+        // Register button
+        const registerBtn = document.getElementById('auth-register-btn');
+        if (registerBtn) registerBtn.addEventListener('click', () => this.handleEmailRegister());
+
+        // Sign out
+        const signOutBtn = document.getElementById('sign-out-btn');
+        if (signOutBtn) signOutBtn.addEventListener('click', () => this.handleSignOut());
+
+        // Sync now
+        const syncNowBtn = document.getElementById('sync-now-btn');
+        if (syncNowBtn) syncNowBtn.addEventListener('click', () => this.syncToCloud());
+    }
+
+    handleAuth(user) {
+        this.currentUser = user;
+        const signedOut = document.getElementById('auth-section-signed-out');
+        const signedIn = document.getElementById('auth-section-signed-in');
+        const userEmail = document.getElementById('auth-user-email');
+        const syncStatus = document.getElementById('sync-status');
+        const userInfo = document.getElementById('user-info');
+        const userName = document.getElementById('user-display-name');
+
+        if (user) {
+            if (signedOut) signedOut.style.display = 'none';
+            if (signedIn) signedIn.style.display = 'block';
+            if (userEmail) userEmail.textContent = user.email || user.displayName || 'Unknown';
+            if (syncStatus) {
+                syncStatus.style.display = 'flex';
+                syncStatus.innerHTML = '<i class="fas fa-cloud-upload-alt"></i><span>Synced</span>';
+                syncStatus.className = 'sync-status synced';
+            }
+            if (userInfo) {
+                userInfo.style.display = 'flex';
+                if (userName) userName.textContent = user.displayName || user.email || 'User';
+            }
+            this.closeModal('auth-modal');
+            this.startFirestoreSync();
+        } else {
+            if (signedOut) signedOut.style.display = 'block';
+            if (signedIn) signedIn.style.display = 'none';
+            if (syncStatus) syncStatus.style.display = 'none';
+            if (userInfo) userInfo.style.display = 'none';
+        }
+    }
+
+    async handleGoogleSignIn() {
+        if (!this.auth) {
+            this.showToast('Firebase not configured. Add your Firebase config to app.js', 'warning');
+            return;
+        }
+        const fm = window.firebaseModules;
+        try {
+            const provider = new fm.GoogleAuthProvider();
+            await fm.signInWithPopup(this.auth, provider);
+            this.showToast('Signed in with Google', 'success');
+        } catch (e) {
+            this.showAuthError(e.message);
+        }
+    }
+
+    async handleEmailSignIn() {
+        if (!this.auth) {
+            this.showToast('Firebase not configured. Add your Firebase config to app.js', 'warning');
+            return;
+        }
+        const fm = window.firebaseModules;
+        const email = document.getElementById('auth-email').value.trim();
+        const password = document.getElementById('auth-password').value;
+
+        if (!email || !password) {
+            this.showAuthError('Please fill in all fields.');
+            return;
+        }
+
+        try {
+            await fm.signInWithEmailAndPassword(this.auth, email, password);
+            this.showToast('Signed in successfully', 'success');
+        } catch (e) {
+            this.showAuthError(this.getFriendlyAuthError(e.code));
+        }
+    }
+
+    async handleEmailRegister() {
+        if (!this.auth) {
+            this.showToast('Firebase not configured. Add your Firebase config to app.js', 'warning');
+            return;
+        }
+        const fm = window.firebaseModules;
+        const email = document.getElementById('auth-email').value.trim();
+        const password = document.getElementById('auth-password').value;
+
+        if (!email || !password) {
+            this.showAuthError('Please fill in all fields.');
+            return;
+        }
+        if (password.length < 6) {
+            this.showAuthError('Password must be at least 6 characters.');
+            return;
+        }
+
+        try {
+            const cred = await fm.createUserWithEmailAndPassword(this.auth, email, password);
+            if (this.data.settings.userName) {
+                await fm.updateProfile(cred.user, { displayName: this.data.settings.userName });
+            }
+            this.showToast('Account created and signed in', 'success');
+        } catch (e) {
+            this.showAuthError(this.getFriendlyAuthError(e.code));
+        }
+    }
+
+    async handleSignOut() {
+        if (!this.auth) return;
+        const fm = window.firebaseModules;
+        try {
+            await fm.signOut(this.auth);
+            this.showToast('Signed out', 'info');
+        } catch (e) {
+            this.showToast('Sign out failed', 'error');
+        }
+    }
+
+    showAuthError(msg) {
+        const el = document.getElementById('auth-error');
+        if (el) {
+            el.textContent = msg;
+            el.style.display = 'block';
+            setTimeout(() => { el.style.display = 'none'; }, 5000);
+        }
+    }
+
+    getFriendlyAuthError(code) {
+        const map = {
+            'auth/user-not-found': 'No account found with this email.',
+            'auth/wrong-password': 'Incorrect password.',
+            'auth/email-already-in-use': 'An account with this email already exists.',
+            'auth/weak-password': 'Password must be at least 6 characters.',
+            'auth/invalid-email': 'Please enter a valid email address.',
+            'auth/too-many-requests': 'Too many attempts. Please try again later.',
+            'auth/popup-closed-by-user': 'Sign-in popup was closed.',
+            'auth/invalid-credential': 'Invalid email or password.'
+        };
+        return map[code] || 'Authentication failed. Please try again.';
+    }
+
+    async startFirestoreSync() {
+        if (!this.firestore || !this.currentUser) return;
+        const fm = window.firebaseModules;
+        try {
+            const docRef = fm.doc(this.firestore, 'users', this.currentUser.uid);
+            const snap = await fm.getDoc(docRef);
+            if (snap.exists()) {
+                const cloud = snap.data();
+                const localTime = localStorage.getItem('workpulse-lastSync') || '0';
+                const cloudTime = cloud.lastSync || '0';
+                if (cloudTime > localTime) {
+                    this.data = { ...this.data, ...cloud.data };
+                    this.data.settings = { ...this.constructor.defaultSettings(), ...cloud.data.settings };
+                    this.saveDataLocal();
+                    this.renderPage(this.currentPage);
+                    this.showToast('Data synced from cloud', 'info');
+                } else {
+                    this.syncToCloud();
+                }
+            } else {
+                this.syncToCloud();
+            }
+            this.updateSyncStatus('synced');
+        } catch (e) {
+            console.error('Sync failed:', e);
+            this.updateSyncStatus('error');
+        }
+    }
+
+    async syncToCloud() {
+        if (!this.firestore || !this.currentUser) return;
+        const fm = window.firebaseModules;
+        this.updateSyncStatus('syncing');
+        try {
+            const now = new Date().toISOString();
+            const docRef = fm.doc(this.firestore, 'users', this.currentUser.uid);
+            await fm.setDoc(docRef, {
+                data: this.data,
+                lastSync: now,
+                updatedAt: now
+            });
+            localStorage.setItem('workpulse-lastSync', now);
+            this.updateSyncStatus('synced');
+        } catch (e) {
+            console.error('Cloud sync failed:', e);
+            this.updateSyncStatus('error');
+            this.showToast('Cloud sync failed', 'error');
+        }
+    }
+
+    updateSyncStatus(status) {
+        const el = document.getElementById('sync-status');
+        if (!el) return;
+        el.style.display = 'flex';
+        const icons = { synced: 'fa-cloud', syncing: 'fa-sync fa-spin', error: 'fa-exclamation-triangle' };
+        const labels = { synced: 'Synced', syncing: 'Syncing...', error: 'Sync error' };
+        el.innerHTML = `<i class="fas ${icons[status]}"></i><span>${labels[status]}</span>`;
+        el.className = `sync-status ${status}`;
+    }
+
+    saveDataLocal() {
+        try {
+            localStorage.setItem('workpulse-data', JSON.stringify(this.data));
+        } catch (e) {
+            console.error('Failed to save data:', e);
+        }
     }
 
     // ========================================
