@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WorkPulse - RPA Work Tracker</title>
+    <meta name="description" content="Track projects, tasks, daily work, and automation ROI metrics">
+    <meta name="theme-color" content="#0d9488">
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Sidebar -->
+    <nav id="sidebar" class="sidebar">
+        <div class="sidebar-header">
+            <img src="icons/icon.svg" alt="WorkPulse" class="sidebar-logo">
+            <h1 class="sidebar-title">WorkPulse</h1>
+            <button id="sidebar-close" class="btn-icon sidebar-close" aria-label="Close menu">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+
+        <ul class="nav-list">
+            <li><a href="#dashboard" class="nav-link active" data-page="dashboard">
+                <i class="fas fa-tachometer-alt"></i><span>Dashboard</span>
+            </a></li>
+            <li><a href="#projects" class="nav-link" data-page="projects">
+                <i class="fas fa-folder-open"></i><span>Projects</span>
+            </a></li>
+            <li><a href="#kanban" class="nav-link" data-page="kanban">
+                <i class="fas fa-columns"></i><span>Kanban Board</span>
+            </a></li>
+            <li><a href="#activity" class="nav-link" data-page="activity">
+                <i class="fas fa-clock"></i><span>Activity Log</span>
+            </a></li>
+            <li><a href="#metrics" class="nav-link" data-page="metrics">
+                <i class="fas fa-chart-line"></i><span>Metrics</span>
+            </a></li>
+            <li><a href="#reports" class="nav-link" data-page="reports">
+                <i class="fas fa-file-alt"></i><span>Reports</span>
+            </a></li>
+            <li><a href="#settings" class="nav-link" data-page="settings">
+                <i class="fas fa-cog"></i><span>Settings</span>
+            </a></li>
+        </ul>
+
+        <div class="sidebar-footer">
+            <div id="sync-status" class="sync-status" style="display:none;">
+                <i class="fas fa-cloud"></i>
+                <span>Not synced</span>
+            </div>
+            <div id="user-info" class="user-info" style="display:none;">
+                <i class="fas fa-user-circle"></i>
+                <span id="user-display-name">Not signed in</span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Mobile header -->
+    <header id="mobile-header" class="mobile-header">
+        <button id="sidebar-toggle" class="btn-icon" aria-label="Open menu">
+            <i class="fas fa-bars"></i>
+        </button>
+        <h2 id="mobile-page-title" class="mobile-page-title">Dashboard</h2>
+        <button id="theme-toggle-mobile" class="btn-icon" aria-label="Toggle theme">
+            <i class="fas fa-moon"></i>
+        </button>
+    </header>
+
+    <!-- Sidebar overlay for mobile -->
+    <div id="sidebar-overlay" class="sidebar-overlay"></div>
+
+    <!-- Main content -->
+    <main id="main-content" class="main-content">
+        <!-- Dashboard Page -->
+        <section id="page-dashboard" class="page active">
+            <div class="page-header">
+                <div>
+                    <h2 class="page-title">Dashboard</h2>
+                    <p class="page-subtitle">Your work at a glance</p>
+                </div>
+                <button id="theme-toggle" class="btn-icon" aria-label="Toggle theme">
+                    <i class="fas fa-moon"></i>
+                </button>
+            </div>
+            <div id="dashboard-content" class="dashboard-grid">
+                <div class="empty-state">
+                    <i class="fas fa-tachometer-alt"></i>
+                    <p>Dashboard will show your stats, charts, and recent activity.</p>
+                    <p>Start by adding some projects!</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Projects Page -->
+        <section id="page-projects" class="page">
+            <div class="page-header">
+                <div>
+                    <h2 class="page-title">Projects</h2>
+                    <p class="page-subtitle">Manage your RPA projects</p>
+                </div>
+                <button id="add-project-btn" class="btn btn-primary">
+                    <i class="fas fa-plus"></i> New Project
+                </button>
+            </div>
+            <div id="projects-filter-bar" class="filter-bar" style="display:none;">
+                <select id="project-status-filter" class="form-select">
+                    <option value="">All Statuses</option>
+                    <option value="active">Active</option>
+                    <option value="on-hold">On Hold</option>
+                    <option value="completed">Completed</option>
+                    <option value="archived">Archived</option>
+                </select>
+                <div class="search-input">
+                    <i class="fas fa-search"></i>
+                    <input type="text" id="project-search" class="form-input" placeholder="Search projects...">
+                </div>
+            </div>
+            <div id="projects-content" class="projects-grid">
+                <div class="empty-state">
+                    <i class="fas fa-folder-open"></i>
+                    <p>No projects yet. Create your first project to get started!</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Kanban Page -->
+        <section id="page-kanban" class="page">
+            <div class="page-header">
+                <div>
+                    <h2 class="page-title">Kanban Board</h2>
+                    <p class="page-subtitle">Visualize your task workflow</p>
+                </div>
+                <div class="page-header-actions">
+                    <select id="kanban-project-filter" class="form-select">
+                        <option value="">All Projects</option>
+                    </select>
+                    <button id="add-task-kanban-btn" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> New Task
+                    </button>
+                </div>
+            </div>
+            <div id="kanban-content" class="kanban-board">
+                <div class="empty-state">
+                    <i class="fas fa-columns"></i>
+                    <p>No tasks yet. Create tasks from the Projects page or add one here!</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Activity Log Page -->
+        <section id="page-activity" class="page">
+            <div class="page-header">
+                <div>
+                    <h2 class="page-title">Activity Log</h2>
+                    <p class="page-subtitle">Track your daily work</p>
+                </div>
+                <button id="add-activity-btn" class="btn btn-primary">
+                    <i class="fas fa-plus"></i> Log Activity
+                </button>
+            </div>
+            <div id="activity-quick-add" class="quick-add-bar" style="display:none;">
+                <input type="text" id="quick-activity-input" class="form-input" placeholder="Quick log: what did you just do?">
+                <select id="quick-activity-category" class="form-select">
+                    <option value="other">Other</option>
+                    <option value="build">Build</option>
+                    <option value="deploy">Deploy</option>
+                    <option value="meeting">Meeting</option>
+                    <option value="research">Research</option>
+                    <option value="support">Support</option>
+                </select>
+                <button id="quick-activity-submit" class="btn btn-primary btn-sm" aria-label="Submit quick activity">
+                    <i class="fas fa-paper-plane"></i>
+                </button>
+            </div>
+            <div id="activity-filter-bar" class="filter-bar" style="display:none;">
+                <select id="activity-project-filter" class="form-select">
+                    <option value="">All Projects</option>
+                </select>
+                <select id="activity-category-filter" class="form-select">
+                    <option value="">All Categories</option>
+                    <option value="build">Build</option>
+                    <option value="deploy">Deploy</option>
+                    <option value="meeting">Meeting</option>
+                    <option value="research">Research</option>
+                    <option value="support">Support</option>
+                    <option value="other">Other</option>
+                </select>
+                <input type="date" id="activity-date-from" class="form-input" title="From date">
+                <input type="date" id="activity-date-to" class="form-input" title="To date">
+                <div class="search-input">
+                    <i class="fas fa-search"></i>
+                    <input type="text" id="activity-search" class="form-input" placeholder="Search activities...">
+                </div>
+            </div>
+            <div id="activity-content" class="activity-timeline">
+                <div class="empty-state">
+                    <i class="fas fa-clock"></i>
+                    <p>No activities logged yet. Start tracking your daily work!</p>
+                </div>
+            </div>
+            <div id="activity-pagination" class="pagination" style="display:none;"></div>
+        </section>
+
+        <!-- Metrics Page -->
+        <section id="page-metrics" class="page">
+            <div class="page-header">
+                <div>
+                    <h2 class="page-title">Value Metrics</h2>
+                    <p class="page-subtitle">Measure your automation impact</p>
+                </div>
+            </div>
+            <div id="metrics-summary" class="metrics-summary" style="display:none;"></div>
+            <div id="metrics-content" class="metrics-grid">
+                <div class="empty-state">
+                    <i class="fas fa-chart-line"></i>
+                    <p>No metrics yet. Add metrics to your projects to track ROI!</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Reports Page -->
+        <section id="page-reports" class="page">
+            <div class="page-header">
+                <div>
+                    <h2 class="page-title">Reports</h2>
+                    <p class="page-subtitle">Generate one-on-one reports for your manager</p>
+                </div>
+            </div>
+            <div id="reports-content">
+                <div class="empty-state">
+                    <i class="fas fa-file-alt"></i>
+                    <p>Reports will be available once you have projects and activities.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Settings Page -->
+        <section id="page-settings" class="page">
+            <div class="page-header">
+                <div>
+                    <h2 class="page-title">Settings</h2>
+                    <p class="page-subtitle">Configure your workspace</p>
+                </div>
+            </div>
+            <div class="settings-content">
+                <div class="card">
+                    <h3 class="card-title"><i class="fas fa-user"></i> Profile</h3>
+                    <div class="form-group">
+                        <label class="form-label" for="setting-name">Your Name</label>
+                        <input type="text" id="setting-name" class="form-input" placeholder="e.g., John Doe">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="setting-title">Job Title</label>
+                        <input type="text" id="setting-title" class="form-input" placeholder="e.g., RPA Analyst">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="setting-boss">Manager's Name</label>
+                        <input type="text" id="setting-boss" class="form-input" placeholder="e.g., Jane Smith">
+                    </div>
+                    <button id="save-settings-btn" class="btn btn-primary">
+                        <i class="fas fa-save"></i> Save Settings
+                    </button>
+                </div>
+
+                <div class="card">
+                    <h3 class="card-title"><i class="fas fa-palette"></i> Appearance</h3>
+                    <div class="form-group">
+                        <label class="form-label">Theme</label>
+                        <div class="theme-toggle-group">
+                            <button id="theme-light" class="btn btn-outline">
+                                <i class="fas fa-sun"></i> Light
+                            </button>
+                            <button id="theme-dark" class="btn btn-outline active">
+                                <i class="fas fa-moon"></i> Dark
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3 class="card-title"><i class="fas fa-cloud"></i> Cloud Sync</h3>
+                    <div id="auth-section">
+                        <p class="text-muted">Sign in to sync your data across devices.</p>
+                        <button id="sign-in-btn" class="btn btn-primary">
+                            <i class="fas fa-sign-in-alt"></i> Sign In
+                        </button>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3 class="card-title"><i class="fas fa-database"></i> Data</h3>
+                    <div class="btn-group">
+                        <button id="export-data-btn" class="btn btn-outline">
+                            <i class="fas fa-download"></i> Export Data
+                        </button>
+                        <button id="import-data-btn" class="btn btn-outline">
+                            <i class="fas fa-upload"></i> Import Data
+                        </button>
+                    </div>
+                    <input type="file" id="import-file-input" accept=".json" style="display:none;">
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Confirm Dialog Modal -->
+    <div id="confirm-dialog" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="confirm-dialog-title">
+        <div class="modal modal-sm">
+            <div class="modal-header">
+                <h3 id="confirm-dialog-title" class="modal-title">Confirm</h3>
+            </div>
+            <div class="modal-body">
+                <p id="confirm-dialog-message"></p>
+            </div>
+            <div class="modal-footer">
+                <button id="confirm-dialog-cancel" class="btn btn-outline">Cancel</button>
+                <button id="confirm-dialog-ok" class="btn btn-danger">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast-container" aria-live="polite"></div>
+
+    <script src="app.js"></script>
+</body>
+</html>

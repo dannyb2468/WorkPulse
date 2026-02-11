@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Generate WorkPulse Icons</title>
+    <style>
+        body { font-family: system-ui; max-width: 600px; margin: 40px auto; text-align: center; }
+        canvas { border: 1px solid #ccc; margin: 10px; }
+        button { padding: 10px 20px; margin: 10px; cursor: pointer; background: #0d9488; color: white; border: none; border-radius: 6px; font-size: 16px; }
+        button:hover { background: #0f766e; }
+    </style>
+</head>
+<body>
+    <h1>WorkPulse Icon Generator</h1>
+    <p>Click to generate and download PNG icons from the SVG.</p>
+    <div id="previews"></div>
+    <button onclick="generateIcons()">Generate & Download Icons</button>
+    <script>
+        async function generateIcons() {
+            const sizes = [192, 512];
+            const svgText = await fetch('icon.svg').then(r => r.text());
+            const blob = new Blob([svgText], { type: 'image/svg+xml' });
+            const url = URL.createObjectURL(blob);
+            for (const size of sizes) {
+                const canvas = document.createElement('canvas');
+                canvas.width = size;
+                canvas.height = size;
+                const ctx = canvas.getContext('2d');
+                const img = new Image();
+                await new Promise(resolve => {
+                    img.onload = resolve;
+                    img.src = url;
+                });
+                ctx.drawImage(img, 0, 0, size, size);
+                document.getElementById('previews').appendChild(canvas);
+                const link = document.createElement('a');
+                link.download = `icon-${size}.png`;
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+            }
+            URL.revokeObjectURL(url);
+        }
+    </script>
+</body>
+</html>
