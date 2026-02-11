@@ -44,6 +44,7 @@ class WorkPulseApp {
         this.setupTasks();
         this.setupKanban();
         this.setupActivities();
+        this.setupMetrics();
         this.setupAuth();
         this.handleHashNavigation();
         this.registerServiceWorker();
@@ -1715,10 +1716,246 @@ class WorkPulseApp {
     }
 
     // ========================================
+    // Metrics
+    // ========================================
+    setupMetrics() {
+        const saveBtn = document.getElementById('save-metrics-btn');
+        if (saveBtn) saveBtn.addEventListener('click', () => this.saveMetrics());
+
+        // Live preview updates
+        ['metrics-hours-to-run', 'metrics-runs-per-week', 'metrics-run-duration', 'metrics-hours-to-build', 'metrics-people-impacted'].forEach(id => {
+            document.getElementById(id)?.addEventListener('input', () => this.updateMetricsPreview());
+        });
+
+        // Event delegation for metrics cards
+        document.getElementById('metrics-content')?.addEventListener('click', (e) => {
+            const editBtn = e.target.closest('.metrics-edit-btn');
+            if (editBtn) this.openMetricsModal(editBtn.dataset.projectId);
+        });
+    }
+
+    openMetricsModal(projectId) {
+        const project = this.getProject(projectId);
+        if (!project) return;
+
+        const title = document.getElementById('metrics-modal-title');
+        title.textContent = `Metrics: ${project.name}`;
+
+        const existing = this.data.metrics.find(m => m.projectId === projectId);
+        document.getElementById('metrics-id').value = existing?.id || '';
+        document.getElementById('metrics-project-id').value = projectId;
+        document.getElementById('metrics-hours-to-run').value = existing?.hoursToRun || '';
+        document.getElementById('metrics-runs-per-week').value = existing?.runsPerWeek || '';
+        document.getElementById('metrics-run-duration').value = existing?.runDurationMinutes || '';
+        document.getElementById('metrics-hours-to-build').value = existing?.hoursToBuild || '';
+        document.getElementById('metrics-people-impacted').value = existing?.peopleImpacted || '';
+
+        this.updateMetricsPreview();
+        this.openModal('metrics-modal');
+    }
+
+    saveMetrics() {
+        const id = document.getElementById('metrics-id').value;
+        const projectId = document.getElementById('metrics-project-id').value;
+        const hoursToRun = parseFloat(document.getElementById('metrics-hours-to-run').value) || 0;
+        const runsPerWeek = parseInt(document.getElementById('metrics-runs-per-week').value) || 0;
+        const runDurationMinutes = parseInt(document.getElementById('metrics-run-duration').value) || 0;
+        const hoursToBuild = parseFloat(document.getElementById('metrics-hours-to-build').value) || 0;
+        const peopleImpacted = parseInt(document.getElementById('metrics-people-impacted').value) || 0;
+
+        if (!projectId) {
+            this.showToast('No project selected', 'error');
+            return;
+        }
+
+        const now = new Date().toISOString();
+
+        if (id) {
+            const idx = this.data.metrics.findIndex(m => m.id === id);
+            if (idx !== -1) {
+                this.data.metrics[idx] = {
+                    ...this.data.metrics[idx],
+                    hoursToRun, runsPerWeek, runDurationMinutes, hoursToBuild, peopleImpacted,
+                    updatedAt: now
+                };
+            }
+        } else {
+            // Remove existing if any
+            this.data.metrics = this.data.metrics.filter(m => m.projectId !== projectId);
+            this.data.metrics.push({
+                id: this.generateId(), projectId,
+                hoursToRun, runsPerWeek, runDurationMinutes, hoursToBuild, peopleImpacted,
+                createdAt: now, updatedAt: now
+            });
+        }
+
+        this.saveData();
+        this.closeModal('metrics-modal');
+        this.renderMetrics();
+        this.showToast('Metrics saved', 'success');
+    }
+
+    calculateHoursSavedPerWeek(metric) {
+        const manualHours = metric.hoursToRun * metric.runsPerWeek;
+        const autoHours = (metric.runDurationMinutes / 60) * metric.runsPerWeek;
+        return Math.max(0, manualHours - autoHours);
+    }
+
+    calculateHoursSavedPerMonth(metric) {
+        return this.calculateHoursSavedPerWeek(metric) * 4.33;
+    }
+
+    calculateHoursSavedPerYear(metric) {
+        return this.calculateHoursSavedPerWeek(metric) * 52;
+    }
+
+    calculateROI(metric) {
+        if (!metric.hoursToBuild || metric.hoursToBuild === 0) return 0;
+        const yearSaved = this.calculateHoursSavedPerYear(metric);
+        return yearSaved / metric.hoursToBuild;
+    }
+
+    calculateBreakevenWeeks(metric) {
+        const weekSaved = this.calculateHoursSavedPerWeek(metric);
+        if (weekSaved <= 0) return Infinity;
+        return metric.hoursToBuild / weekSaved;
+    }
+
+    getCumulativeMetrics() {
+        let totalSavedWeek = 0, totalSavedYear = 0, totalBuildHours = 0, totalPeople = 0;
+        this.data.metrics.forEach(m => {
+            totalSavedWeek += this.calculateHoursSavedPerWeek(m);
+            totalSavedYear += this.calculateHoursSavedPerYear(m);
+            totalBuildHours += m.hoursToBuild || 0;
+            totalPeople += m.peopleImpacted || 0;
+        });
+        const avgROI = totalBuildHours > 0 ? totalSavedYear / totalBuildHours : 0;
+        return { totalSavedWeek, totalSavedYear, totalBuildHours, totalPeople, avgROI };
+    }
+
+    updateMetricsPreview() {
+        const preview = document.getElementById('metrics-live-preview');
+        if (!preview) return;
+
+        const metric = {
+            hoursToRun: parseFloat(document.getElementById('metrics-hours-to-run').value) || 0,
+            runsPerWeek: parseInt(document.getElementById('metrics-runs-per-week').value) || 0,
+            runDurationMinutes: parseInt(document.getElementById('metrics-run-duration').value) || 0,
+            hoursToBuild: parseFloat(document.getElementById('metrics-hours-to-build').value) || 0,
+            peopleImpacted: parseInt(document.getElementById('metrics-people-impacted').value) || 0
+        };
+
+        const weekSaved = this.calculateHoursSavedPerWeek(metric);
+        const yearSaved = this.calculateHoursSavedPerYear(metric);
+        const roi = this.calculateROI(metric);
+        const breakeven = this.calculateBreakevenWeeks(metric);
+
+        preview.innerHTML = `
+            <h4 style="font-weight:700;margin-bottom:8px;font-size:0.875rem;"><i class="fas fa-calculator" style="color:var(--primary);"></i> Live Preview</h4>
+            <div class="metric-row"><span class="metric-row-label">Hours saved/week</span><span class="metric-row-value">${weekSaved.toFixed(1)}h</span></div>
+            <div class="metric-row"><span class="metric-row-label">Hours saved/year</span><span class="metric-row-value">${yearSaved.toFixed(0)}h</span></div>
+            <div class="metric-row"><span class="metric-row-label">ROI</span><span class="metric-row-value">${(roi * 100).toFixed(0)}%</span></div>
+            <div class="metric-row"><span class="metric-row-label">Breakeven</span><span class="metric-row-value">${breakeven === Infinity ? 'N/A' : breakeven.toFixed(1) + ' weeks'}</span></div>
+        `;
+    }
+
+    renderMetrics() {
+        const container = document.getElementById('metrics-content');
+        const summaryEl = document.getElementById('metrics-summary');
+        if (!container) return;
+
+        const projects = this.data.projects.filter(p => p.status !== 'archived');
+
+        if (projects.length === 0) {
+            if (summaryEl) summaryEl.style.display = 'none';
+            container.innerHTML = `<div class="empty-state">
+                <i class="fas fa-chart-line"></i>
+                <p>No projects yet. Create projects first to track metrics!</p>
+            </div>`;
+            return;
+        }
+
+        // Summary cards
+        if (this.data.metrics.length > 0 && summaryEl) {
+            const cum = this.getCumulativeMetrics();
+            summaryEl.style.display = 'grid';
+            summaryEl.innerHTML = `
+                <div class="stat-card">
+                    <div class="stat-icon primary"><i class="fas fa-clock"></i></div>
+                    <div><div class="stat-value">${cum.totalSavedWeek.toFixed(1)}h</div><div class="stat-label">Saved/Week</div></div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon success"><i class="fas fa-calendar-check"></i></div>
+                    <div><div class="stat-value">${cum.totalSavedYear.toFixed(0)}h</div><div class="stat-label">Saved/Year</div></div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon accent"><i class="fas fa-chart-line"></i></div>
+                    <div><div class="stat-value">${(cum.avgROI * 100).toFixed(0)}%</div><div class="stat-label">Avg ROI</div></div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon info"><i class="fas fa-users"></i></div>
+                    <div><div class="stat-value">${cum.totalPeople}</div><div class="stat-label">People Impacted</div></div>
+                </div>
+            `;
+        } else if (summaryEl) {
+            summaryEl.style.display = 'none';
+        }
+
+        // Per-project cards
+        container.innerHTML = projects.map(p => {
+            const metric = this.data.metrics.find(m => m.projectId === p.id);
+            if (!metric) {
+                return `<div class="metric-card">
+                    <div class="metric-card-header">
+                        <span class="metric-card-project">${this.escapeHtml(p.name)}</span>
+                    </div>
+                    <p style="color:var(--text-muted);margin-bottom:12px;">No metrics configured</p>
+                    <button class="btn btn-primary btn-sm metrics-edit-btn" data-project-id="${this.escapeHtml(p.id)}">
+                        <i class="fas fa-plus"></i> Add Metrics
+                    </button>
+                </div>`;
+            }
+
+            const weekSaved = this.calculateHoursSavedPerWeek(metric);
+            const yearSaved = this.calculateHoursSavedPerYear(metric);
+            const roi = this.calculateROI(metric);
+            const breakeven = this.calculateBreakevenWeeks(metric);
+            const roiClass = roi >= 1 ? 'positive' : roi > 0 ? 'neutral' : 'negative';
+            const manualHours = metric.hoursToRun * metric.runsPerWeek;
+            const autoHours = (metric.runDurationMinutes / 60) * metric.runsPerWeek;
+            const barPercent = manualHours > 0 ? Math.min(100, (autoHours / manualHours) * 100) : 0;
+
+            return `<div class="metric-card">
+                <div class="metric-card-header">
+                    <span class="metric-card-project">${this.escapeHtml(p.name)}</span>
+                    <span class="roi-badge ${roiClass}">${(roi * 100).toFixed(0)}% ROI</span>
+                </div>
+                <div class="metric-row"><span class="metric-row-label">Manual time/run</span><span class="metric-row-value">${metric.hoursToRun}h</span></div>
+                <div class="metric-row"><span class="metric-row-label">Runs/week</span><span class="metric-row-value">${metric.runsPerWeek}</span></div>
+                <div class="metric-row"><span class="metric-row-label">Bot duration/run</span><span class="metric-row-value">${metric.runDurationMinutes}min</span></div>
+                <div class="metric-row"><span class="metric-row-label">Hours saved/week</span><span class="metric-row-value" style="color:var(--success);font-weight:700;">${weekSaved.toFixed(1)}h</span></div>
+                <div class="metric-row"><span class="metric-row-label">Hours saved/year</span><span class="metric-row-value">${yearSaved.toFixed(0)}h</span></div>
+                <div class="metric-row"><span class="metric-row-label">Build investment</span><span class="metric-row-value">${metric.hoursToBuild}h</span></div>
+                <div class="metric-row"><span class="metric-row-label">Breakeven</span><span class="metric-row-value">${breakeven === Infinity ? 'N/A' : breakeven.toFixed(1) + ' weeks'}</span></div>
+                <div class="metric-row"><span class="metric-row-label">People impacted</span><span class="metric-row-value">${metric.peopleImpacted}</span></div>
+                <div style="margin-top:8px;">
+                    <div style="display:flex;justify-content:space-between;font-size:0.75rem;color:var(--text-muted);margin-bottom:4px;">
+                        <span>Automated: ${autoHours.toFixed(1)}h/wk</span>
+                        <span>Manual: ${manualHours.toFixed(1)}h/wk</span>
+                    </div>
+                    <div class="comparison-bar"><div class="comparison-bar-fill" style="width:${barPercent}%"></div></div>
+                </div>
+                <button class="btn btn-outline btn-sm metrics-edit-btn" data-project-id="${this.escapeHtml(p.id)}" style="margin-top:12px;">
+                    <i class="fas fa-pen"></i> Edit Metrics
+                </button>
+            </div>`;
+        }).join('');
+    }
+
+    // ========================================
     // Page Renders (stubs)
     // ========================================
     renderDashboard() {}
-    renderMetrics() {}
     renderReports() {}
 }
 

@@ -326,6 +326,52 @@
         </section>
     </main>
 
+    <!-- Metrics Modal -->
+    <div id="metrics-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="metrics-modal-title">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="metrics-modal-title" class="modal-title">Edit Metrics</h3>
+                <button class="btn-icon" onclick="app.closeModal('metrics-modal')" aria-label="Close">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="metrics-id">
+                <input type="hidden" id="metrics-project-id">
+                <div class="form-group">
+                    <label class="form-label" for="metrics-hours-to-run">Manual Hours to Run (per run)</label>
+                    <input type="number" id="metrics-hours-to-run" class="form-input" min="0" step="0.25" placeholder="e.g., 2.5">
+                    <p class="form-hint">How many hours does this process take manually per run?</p>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="metrics-runs-per-week">Runs Per Week</label>
+                    <input type="number" id="metrics-runs-per-week" class="form-input" min="0" step="1" placeholder="e.g., 5">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="metrics-run-duration">Automated Run Duration (minutes)</label>
+                    <input type="number" id="metrics-run-duration" class="form-input" min="0" step="1" placeholder="e.g., 15">
+                    <p class="form-hint">How long does the bot take per run?</p>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="metrics-hours-to-build">Hours to Build</label>
+                    <input type="number" id="metrics-hours-to-build" class="form-input" min="0" step="0.5" placeholder="e.g., 40">
+                    <p class="form-hint">Total development hours invested</p>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="metrics-people-impacted">People Impacted</label>
+                    <input type="number" id="metrics-people-impacted" class="form-input" min="0" step="1" placeholder="e.g., 10">
+                </div>
+                <div id="metrics-live-preview" class="card" style="margin-top:16px;background:var(--bg);"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="app.closeModal('metrics-modal')">Cancel</button>
+                <button id="save-metrics-btn" class="btn btn-primary">
+                    <i class="fas fa-save"></i> Save Metrics
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Activity Modal -->
     <div id="activity-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="activity-modal-title">
         <div class="modal">
