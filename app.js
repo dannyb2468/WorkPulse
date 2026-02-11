@@ -2011,6 +2011,15 @@ class WorkPulseApp {
 
         const preset = document.getElementById('report-date-preset');
         if (preset) preset.addEventListener('change', () => this.updateReportDates());
+
+        // Report presets
+        document.getElementById('report-presets')?.addEventListener('click', (e) => {
+            const btn = e.target.closest('.report-preset-btn');
+            if (!btn) return;
+            document.querySelectorAll('.report-preset-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            this.applyReportPreset(btn.dataset.preset);
+        });
     }
 
     updateReportDates() {
@@ -2313,6 +2322,67 @@ class WorkPulseApp {
 
     renderReports() {
         this.updateReportDates();
+    }
+
+    applyReportPreset(preset) {
+        const datePreset = document.getElementById('report-date-preset');
+        const fromField = document.getElementById('report-date-from');
+        const toField = document.getElementById('report-date-to');
+        const today = new Date();
+        let from;
+
+        const checkboxes = {
+            completed: document.getElementById('report-show-completed'),
+            progress: document.getElementById('report-show-progress'),
+            upcoming: document.getElementById('report-show-upcoming'),
+            blockers: document.getElementById('report-show-blockers'),
+            activities: document.getElementById('report-show-activities'),
+            metrics: document.getElementById('report-show-metrics')
+        };
+
+        switch (preset) {
+            case 'standup':
+                // Yesterday + Today
+                from = new Date(today);
+                from.setDate(today.getDate() - 1);
+                if (datePreset) datePreset.value = 'custom';
+                if (fromField) fromField.value = this.toLocalDateString(from);
+                if (toField) toField.value = this.toLocalDateString(today);
+                if (checkboxes.completed) checkboxes.completed.checked = true;
+                if (checkboxes.progress) checkboxes.progress.checked = true;
+                if (checkboxes.upcoming) checkboxes.upcoming.checked = false;
+                if (checkboxes.blockers) checkboxes.blockers.checked = true;
+                if (checkboxes.activities) checkboxes.activities.checked = false;
+                if (checkboxes.metrics) checkboxes.metrics.checked = false;
+                break;
+
+            case 'one-on-one':
+                // Last 2 weeks
+                from = new Date(today);
+                from.setDate(today.getDate() - 14);
+                if (datePreset) datePreset.value = 'last-2-weeks';
+                if (fromField) fromField.value = this.toLocalDateString(from);
+                if (toField) toField.value = this.toLocalDateString(today);
+                if (checkboxes.completed) checkboxes.completed.checked = true;
+                if (checkboxes.progress) checkboxes.progress.checked = true;
+                if (checkboxes.upcoming) checkboxes.upcoming.checked = false;
+                if (checkboxes.blockers) checkboxes.blockers.checked = true;
+                if (checkboxes.activities) checkboxes.activities.checked = false;
+                if (checkboxes.metrics) checkboxes.metrics.checked = true;
+                break;
+
+            case 'monthly':
+                // Last month
+                from = new Date(today);
+                from.setMonth(today.getMonth() - 1);
+                if (datePreset) datePreset.value = 'last-month';
+                if (fromField) fromField.value = this.toLocalDateString(from);
+                if (toField) toField.value = this.toLocalDateString(today);
+                Object.values(checkboxes).forEach(cb => { if (cb) cb.checked = true; });
+                break;
+        }
+
+        this.generateReport();
     }
 
     // ========================================

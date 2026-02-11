@@ -1069,6 +1069,23 @@ body {
 /* ========================================
    Reports
    ======================================== */
+.report-presets {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+}
+
+.report-preset-btn {
+    transition: all var(--transition);
+}
+
+.report-preset-btn.active {
+    background: var(--primary);
+    color: #ffffff;
+    border-color: var(--primary);
+}
+
 .report-config {
     background: var(--bg-card);
     border: 1px solid var(--border);
