@@ -46,6 +46,7 @@ class WorkPulseApp {
         this.setupActivities();
         this.setupMetrics();
         this.setupReports();
+        this.setupSnapshots();
         this.setupAuth();
         this.handleHashNavigation();
         this.registerServiceWorker();
@@ -2283,6 +2284,7 @@ class WorkPulseApp {
         this.renderHoursSavedChart();
         this.renderRecentActivityFeed();
         this.renderUpcomingDeadlines();
+        this.renderSnapshotHistory();
     }
 
     renderDashboardGreeting() {
@@ -2506,6 +2508,126 @@ class WorkPulseApp {
                 <span class="task-due-date ${urgency}">${this.formatDateShort(t.dueDate)}</span>
             </div>`;
         });
+        html += '</div>';
+        container.innerHTML = html;
+    }
+
+    // ========================================
+    // Weekly Snapshots
+    // ========================================
+    setupSnapshots() {
+        this.autoGenerateCurrentWeekSnapshot();
+    }
+
+    autoGenerateCurrentWeekSnapshot() {
+        if (this.data.tasks.length === 0 && this.data.activities.length === 0) return;
+
+        const { start, end } = this.getWeekBounds(new Date());
+        const weekStart = this.toLocalDateString(start);
+        const weekEnd = this.toLocalDateString(end);
+
+        const existing = this.data.weeklySnapshots.find(s => s.weekStart === weekStart);
+
+        if (existing) {
+            // Check if stale (>1 day old)
+            const lastUpdated = new Date(existing.updatedAt || existing.createdAt);
+            const now = new Date();
+            const daysSinceUpdate = (now - lastUpdated) / 86400000;
+            if (daysSinceUpdate < 1) return;
+
+            // Refresh existing snapshot
+            const updated = this.generateWeeklySnapshot(weekStart, weekEnd);
+            const idx = this.data.weeklySnapshots.findIndex(s => s.id === existing.id);
+            if (idx !== -1) {
+                this.data.weeklySnapshots[idx] = { ...existing, ...updated, id: existing.id, updatedAt: new Date().toISOString() };
+            }
+        } else {
+            const snapshot = this.generateWeeklySnapshot(weekStart, weekEnd);
+            snapshot.id = this.generateId();
+            snapshot.createdAt = new Date().toISOString();
+            snapshot.updatedAt = new Date().toISOString();
+            this.data.weeklySnapshots.push(snapshot);
+        }
+
+        this.saveData();
+    }
+
+    generateWeeklySnapshot(weekStart, weekEnd) {
+        const completed = this.data.tasks.filter(t =>
+            t.status === 'done' && t.completedAt &&
+            t.completedAt >= weekStart && t.completedAt <= weekEnd + 'T23:59:59'
+        ).map(t => t.id);
+
+        const inProgress = this.data.tasks.filter(t =>
+            t.status === 'in-progress' || t.status === 'this-week'
+        ).map(t => t.id);
+
+        const newTasks = this.data.tasks.filter(t =>
+            t.createdAt && t.createdAt >= weekStart && t.createdAt <= weekEnd + 'T23:59:59'
+        ).map(t => t.id);
+
+        const stuck = this.data.tasks.filter(t =>
+            t.status === 'blocked'
+        ).map(t => t.id);
+
+        const summary = this.buildSnapshotSummary(completed, inProgress, newTasks, stuck);
+
+        return { weekStart, weekEnd, completed, inProgress, newTasks, stuck, summary };
+    }
+
+    buildSnapshotSummary(completed, inProgress, newTasks, stuck) {
+        const parts = [];
+        if (completed.length > 0) parts.push(`Completed ${completed.length} task${completed.length !== 1 ? 's' : ''}`);
+        if (inProgress.length > 0) parts.push(`${inProgress.length} in progress`);
+        if (newTasks.length > 0) parts.push(`${newTasks.length} new task${newTasks.length !== 1 ? 's' : ''} added`);
+        if (stuck.length > 0) parts.push(`${stuck.length} blocked`);
+        return parts.join('. ') + (parts.length > 0 ? '.' : 'No significant activity this week.');
+    }
+
+    renderSnapshotHistory() {
+        const container = document.getElementById('dashboard-snapshot');
+        if (!container) return;
+
+        const snapshots = [...this.data.weeklySnapshots]
+            .sort((a, b) => b.weekStart.localeCompare(a.weekStart))
+            .slice(0, 4);
+
+        if (snapshots.length === 0) {
+            container.innerHTML = '';
+            return;
+        }
+
+        let html = '<div class="card"><h3 class="card-title"><i class="fas fa-history"></i> Weekly Snapshots</h3>';
+
+        snapshots.forEach(s => {
+            const completedNames = s.completed.map(id => this.data.tasks.find(t => t.id === id)?.name).filter(Boolean);
+            const stuckNames = s.stuck.map(id => this.data.tasks.find(t => t.id === id)?.name).filter(Boolean);
+
+            html += `<div class="snapshot-card">
+                <div class="snapshot-header">
+                    <span class="snapshot-week">${this.formatDateShort(s.weekStart)} - ${this.formatDateShort(s.weekEnd)}</span>
+                </div>
+                <div class="snapshot-sections">
+                    <div class="snapshot-section completed">
+                        <div class="snapshot-section-label"><span class="badge badge-success">${s.completed.length}</span> Completed</div>
+                        ${completedNames.slice(0, 3).map(n => `<div style="font-size:0.75rem;">${this.escapeHtml(n)}</div>`).join('')}
+                        ${completedNames.length > 3 ? `<div style="font-size:0.75rem;color:var(--text-muted);">+${completedNames.length - 3} more</div>` : ''}
+                    </div>
+                    <div class="snapshot-section in-progress">
+                        <div class="snapshot-section-label"><span class="badge badge-info">${s.inProgress.length}</span> In Progress</div>
+                    </div>
+                    <div class="snapshot-section new-tasks">
+                        <div class="snapshot-section-label"><span class="badge badge-primary">${s.newTasks.length}</span> New</div>
+                    </div>
+                    <div class="snapshot-section stuck">
+                        <div class="snapshot-section-label"><span class="badge badge-danger">${s.stuck.length}</span> Blocked</div>
+                        ${stuckNames.map(n => `<div style="font-size:0.75rem;">${this.escapeHtml(n)}</div>`).join('')}
+                    </div>
+                </div>
+                ${s.summary ? `<div class="snapshot-summary">${this.escapeHtml(s.summary)}</div>` : ''}
+            </div>`;
+        });
+
         html += '</div>';
         container.innerHTML = html;
     }
