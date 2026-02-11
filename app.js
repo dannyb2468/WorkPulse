@@ -43,6 +43,7 @@ class WorkPulseApp {
         this.setupProjects();
         this.setupTasks();
         this.setupKanban();
+        this.setupActivities();
         this.setupAuth();
         this.handleHashNavigation();
         this.registerServiceWorker();
@@ -1410,10 +1411,313 @@ class WorkPulseApp {
     }
 
     // ========================================
+    // Activities
+    // ========================================
+    setupActivities() {
+        this.activityPage = 1;
+        this.activitiesPerPage = 20;
+
+        const addBtn = document.getElementById('add-activity-btn');
+        if (addBtn) addBtn.addEventListener('click', () => this.openActivityModal());
+
+        const saveBtn = document.getElementById('save-activity-btn');
+        if (saveBtn) saveBtn.addEventListener('click', () => this.saveActivity());
+
+        // Quick add
+        const quickSubmit = document.getElementById('quick-activity-submit');
+        if (quickSubmit) quickSubmit.addEventListener('click', () => this.quickAddActivity());
+        const quickInput = document.getElementById('quick-activity-input');
+        if (quickInput) quickInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') this.quickAddActivity();
+        });
+
+        // Filters
+        ['activity-project-filter', 'activity-category-filter', 'activity-date-from', 'activity-date-to'].forEach(id => {
+            document.getElementById(id)?.addEventListener('change', () => { this.activityPage = 1; this.renderActivities(); });
+        });
+        document.getElementById('activity-search')?.addEventListener('input', () => { this.activityPage = 1; this.renderActivities(); });
+
+        // Task select follows project select in modal
+        document.getElementById('activity-project-select')?.addEventListener('change', () => {
+            const projectId = document.getElementById('activity-project-select').value;
+            const taskSelect = document.getElementById('activity-task-select');
+            if (taskSelect) {
+                const tasks = projectId ? this.data.tasks.filter(t => t.projectId === projectId) : [];
+                taskSelect.innerHTML = '<option value="">No task</option>' +
+                    tasks.map(t => `<option value="${this.escapeHtml(t.id)}">${this.escapeHtml(t.name)}</option>`).join('');
+            }
+        });
+
+        // Event delegation for activity items
+        document.getElementById('activity-content')?.addEventListener('click', (e) => {
+            const editBtn = e.target.closest('.activity-edit-btn');
+            const deleteBtn = e.target.closest('.activity-delete-btn');
+            if (deleteBtn) {
+                this.deleteActivity(deleteBtn.dataset.id);
+            } else if (editBtn) {
+                this.editActivity(editBtn.dataset.id);
+            }
+        });
+    }
+
+    openActivityModal(activity = null) {
+        const title = document.getElementById('activity-modal-title');
+        const idField = document.getElementById('activity-id');
+        const entryField = document.getElementById('activity-entry');
+        const projectField = document.getElementById('activity-project-select');
+        const taskField = document.getElementById('activity-task-select');
+        const categoryField = document.getElementById('activity-category-select');
+        const dateField = document.getElementById('activity-date-input');
+        const tagsField = document.getElementById('activity-tags-input');
+
+        projectField.innerHTML = '<option value="">No project</option>' +
+            this.data.projects.map(p => `<option value="${this.escapeHtml(p.id)}">${this.escapeHtml(p.name)}</option>`).join('');
+
+        if (activity) {
+            title.textContent = 'Edit Activity';
+            idField.value = activity.id;
+            entryField.value = activity.entry || '';
+            projectField.value = activity.projectId || '';
+            categoryField.value = activity.category || 'other';
+            dateField.value = activity.date || '';
+            tagsField.value = (activity.tags || []).join(', ');
+            // Update task dropdown
+            const tasks = activity.projectId ? this.data.tasks.filter(t => t.projectId === activity.projectId) : [];
+            taskField.innerHTML = '<option value="">No task</option>' +
+                tasks.map(t => `<option value="${this.escapeHtml(t.id)}">${this.escapeHtml(t.name)}</option>`).join('');
+            taskField.value = activity.taskId || '';
+        } else {
+            title.textContent = 'Log Activity';
+            idField.value = '';
+            entryField.value = '';
+            projectField.value = '';
+            taskField.innerHTML = '<option value="">No task</option>';
+            categoryField.value = 'other';
+            dateField.value = this.toLocalDateString();
+            tagsField.value = '';
+        }
+
+        this.openModal('activity-modal');
+    }
+
+    saveActivity() {
+        const id = document.getElementById('activity-id').value;
+        const entry = document.getElementById('activity-entry').value.trim();
+        const projectId = document.getElementById('activity-project-select').value || null;
+        const taskId = document.getElementById('activity-task-select').value || null;
+        const category = document.getElementById('activity-category-select').value;
+        const date = document.getElementById('activity-date-input').value || this.toLocalDateString();
+        const tagsRaw = document.getElementById('activity-tags-input').value;
+
+        if (!entry) {
+            this.showToast('Activity description is required', 'error');
+            return;
+        }
+        if (entry.length > 1000) {
+            this.showToast('Description must be 1000 characters or less', 'error');
+            return;
+        }
+
+        const tags = tagsRaw.split(',').map(t => t.trim()).filter(Boolean);
+        const now = new Date().toISOString();
+
+        if (id) {
+            const idx = this.data.activities.findIndex(a => a.id === id);
+            if (idx !== -1) {
+                this.data.activities[idx] = {
+                    ...this.data.activities[idx], entry, projectId, taskId, category, date, tags, updatedAt: now
+                };
+                this.showToast('Activity updated', 'success');
+            }
+        } else {
+            this.data.activities.push({
+                id: this.generateId(), entry, projectId, taskId, category, date, tags,
+                timestamp: now, createdAt: now
+            });
+            this.showToast('Activity logged', 'success');
+        }
+
+        this.saveData();
+        this.closeModal('activity-modal');
+        this.renderActivities();
+    }
+
+    quickAddActivity() {
+        const input = document.getElementById('quick-activity-input');
+        const category = document.getElementById('quick-activity-category');
+        const entry = input?.value.trim();
+        if (!entry) return;
+
+        const now = new Date().toISOString();
+        this.data.activities.push({
+            id: this.generateId(),
+            entry,
+            projectId: null,
+            taskId: null,
+            category: category?.value || 'other',
+            date: this.toLocalDateString(),
+            tags: [],
+            timestamp: now,
+            createdAt: now
+        });
+
+        this.saveData();
+        if (input) input.value = '';
+        this.showToast('Activity logged', 'success');
+        this.renderActivities();
+    }
+
+    editActivity(id) {
+        const activity = this.data.activities.find(a => a.id === id);
+        if (activity) this.openActivityModal(activity);
+    }
+
+    deleteActivity(id) {
+        const activity = this.data.activities.find(a => a.id === id);
+        if (!activity) return;
+        this.confirmAction('Delete this activity?', () => {
+            this.data.activities = this.data.activities.filter(a => a.id !== id);
+            this.saveData();
+            this.renderActivities();
+            this.showToast('Activity deleted', 'success');
+        });
+    }
+
+    filterActivities() {
+        let activities = [...this.data.activities];
+        const projectFilter = document.getElementById('activity-project-filter')?.value;
+        const categoryFilter = document.getElementById('activity-category-filter')?.value;
+        const dateFrom = document.getElementById('activity-date-from')?.value;
+        const dateTo = document.getElementById('activity-date-to')?.value;
+        const search = document.getElementById('activity-search')?.value.toLowerCase();
+
+        if (projectFilter) activities = activities.filter(a => a.projectId === projectFilter);
+        if (categoryFilter) activities = activities.filter(a => a.category === categoryFilter);
+        if (dateFrom) activities = activities.filter(a => a.date >= dateFrom);
+        if (dateTo) activities = activities.filter(a => a.date <= dateTo);
+        if (search) activities = activities.filter(a =>
+            a.entry.toLowerCase().includes(search) ||
+            (a.tags || []).some(t => t.toLowerCase().includes(search))
+        );
+
+        return activities.sort((a, b) => (b.timestamp || b.createdAt || '').localeCompare(a.timestamp || a.createdAt || ''));
+    }
+
+    renderActivities() {
+        const container = document.getElementById('activity-content');
+        const quickAdd = document.getElementById('activity-quick-add');
+        const filterBar = document.getElementById('activity-filter-bar');
+        const paginationEl = document.getElementById('activity-pagination');
+        const projectFilter = document.getElementById('activity-project-filter');
+        if (!container) return;
+
+        // Show quick add and filter bar
+        if (quickAdd) quickAdd.style.display = 'flex';
+
+        // Populate project filter
+        if (projectFilter) {
+            const val = projectFilter.value;
+            projectFilter.innerHTML = '<option value="">All Projects</option>' +
+                this.data.projects.map(p =>
+                    `<option value="${this.escapeHtml(p.id)}">${this.escapeHtml(p.name)}</option>`
+                ).join('');
+            projectFilter.value = val;
+        }
+
+        if (this.data.activities.length === 0) {
+            if (filterBar) filterBar.style.display = 'none';
+            if (paginationEl) paginationEl.style.display = 'none';
+            container.innerHTML = `<div class="empty-state">
+                <i class="fas fa-clock"></i>
+                <p>No activities logged yet. Start tracking your daily work!</p>
+            </div>`;
+            return;
+        }
+
+        if (filterBar) filterBar.style.display = 'flex';
+
+        const filtered = this.filterActivities();
+        const totalPages = Math.ceil(filtered.length / this.activitiesPerPage);
+        if (this.activityPage > totalPages) this.activityPage = Math.max(1, totalPages);
+        const start = (this.activityPage - 1) * this.activitiesPerPage;
+        const pageItems = filtered.slice(start, start + this.activitiesPerPage);
+
+        if (pageItems.length === 0) {
+            container.innerHTML = `<div class="empty-state">
+                <i class="fas fa-search"></i>
+                <p>No activities match your filters.</p>
+            </div>`;
+            if (paginationEl) paginationEl.style.display = 'none';
+            return;
+        }
+
+        // Group by date
+        const groups = {};
+        pageItems.forEach(a => {
+            const group = this.getDateGroup(a.date);
+            if (!groups[group]) groups[group] = [];
+            groups[group].push(a);
+        });
+
+        const categoryIcons = {
+            build: 'fa-hammer', deploy: 'fa-rocket', meeting: 'fa-users',
+            research: 'fa-microscope', support: 'fa-headset', other: 'fa-circle'
+        };
+
+        let html = '';
+        for (const [groupName, items] of Object.entries(groups)) {
+            html += `<div class="activity-date-group">
+                <div class="activity-date-header">${this.escapeHtml(groupName)}</div>`;
+            items.forEach(a => {
+                const project = a.projectId ? this.getProject(a.projectId) : null;
+                const icon = categoryIcons[a.category] || 'fa-circle';
+                html += `<div class="activity-item" style="border-left-color:${this.escapeHtml(project?.color || 'var(--primary)')}">
+                    <div class="activity-item-content">
+                        <div class="activity-item-entry">${this.escapeHtml(a.entry)}</div>
+                        <div class="activity-item-meta">
+                            <span class="category-badge ${a.category}"><i class="fas ${icon}"></i> ${this.escapeHtml(a.category)}</span>
+                            ${project ? `<span class="tag">${this.escapeHtml(project.name)}</span>` : ''}
+                            ${a.timestamp ? `<span>${this.formatTimestamp(a.timestamp)}</span>` : ''}
+                            ${(a.tags || []).map(t => `<span class="tag">${this.escapeHtml(t)}</span>`).join('')}
+                        </div>
+                    </div>
+                    <div class="activity-item-actions">
+                        <button class="btn-icon btn-ghost activity-edit-btn" data-id="${this.escapeHtml(a.id)}" aria-label="Edit activity">
+                            <i class="fas fa-pen"></i>
+                        </button>
+                        <button class="btn-icon btn-ghost activity-delete-btn" data-id="${this.escapeHtml(a.id)}" aria-label="Delete activity">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>`;
+            });
+            html += '</div>';
+        }
+
+        container.innerHTML = html;
+
+        // Pagination
+        if (paginationEl) {
+            if (totalPages <= 1) {
+                paginationEl.style.display = 'none';
+            } else {
+                paginationEl.style.display = 'flex';
+                paginationEl.innerHTML = `
+                    <button class="btn btn-outline btn-sm" ${this.activityPage <= 1 ? 'disabled' : ''} onclick="app.activityPage--; app.renderActivities();">
+                        <i class="fas fa-chevron-left"></i> Prev
+                    </button>
+                    <span class="pagination-info">Page ${this.activityPage} of ${totalPages}</span>
+                    <button class="btn btn-outline btn-sm" ${this.activityPage >= totalPages ? 'disabled' : ''} onclick="app.activityPage++; app.renderActivities();">
+                        Next <i class="fas fa-chevron-right"></i>
+                    </button>`;
+            }
+        }
+    }
+
+    // ========================================
     // Page Renders (stubs)
     // ========================================
     renderDashboard() {}
-    renderActivities() {}
     renderMetrics() {}
     renderReports() {}
 }

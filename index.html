@@ -326,6 +326,62 @@
         </section>
     </main>
 
+    <!-- Activity Modal -->
+    <div id="activity-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="activity-modal-title">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="activity-modal-title" class="modal-title">Log Activity</h3>
+                <button class="btn-icon" onclick="app.closeModal('activity-modal')" aria-label="Close">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="activity-id">
+                <div class="form-group">
+                    <label class="form-label" for="activity-entry">What did you do? *</label>
+                    <textarea id="activity-entry" class="form-textarea" placeholder="Describe your work..." required maxlength="1000"></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="activity-project">Project</label>
+                    <select id="activity-project-select" class="form-select">
+                        <option value="">No project</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="activity-task">Task</label>
+                    <select id="activity-task-select" class="form-select">
+                        <option value="">No task</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="activity-category-select">Category</label>
+                    <select id="activity-category-select" class="form-select">
+                        <option value="other">Other</option>
+                        <option value="build">Build</option>
+                        <option value="deploy">Deploy</option>
+                        <option value="meeting">Meeting</option>
+                        <option value="research">Research</option>
+                        <option value="support">Support</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="activity-date-input">Date</label>
+                    <input type="date" id="activity-date-input" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="activity-tags-input">Tags</label>
+                    <input type="text" id="activity-tags-input" class="form-input" placeholder="Comma-separated tags">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="app.closeModal('activity-modal')">Cancel</button>
+                <button id="save-activity-btn" class="btn btn-primary">
+                    <i class="fas fa-save"></i> Save Activity
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Task Modal -->
     <div id="task-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="task-modal-title">
         <div class="modal">
