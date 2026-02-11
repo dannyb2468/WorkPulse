@@ -326,6 +326,87 @@
         </section>
     </main>
 
+    <!-- Task Modal -->
+    <div id="task-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="task-modal-title">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="task-modal-title" class="modal-title">New Task</h3>
+                <button class="btn-icon" onclick="app.closeModal('task-modal')" aria-label="Close">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="task-id">
+                <div class="form-group">
+                    <label class="form-label" for="task-name">Task Name *</label>
+                    <input type="text" id="task-name" class="form-input" placeholder="e.g., Build error handling module" required maxlength="200">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="task-description">Description</label>
+                    <textarea id="task-description" class="form-textarea" placeholder="Details about this task..." maxlength="1000"></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="task-project">Project *</label>
+                    <select id="task-project" class="form-select" required>
+                        <option value="">Select a project...</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="task-status">Status</label>
+                    <select id="task-status" class="form-select">
+                        <option value="backlog">Backlog</option>
+                        <option value="this-week">This Week</option>
+                        <option value="in-progress">In Progress</option>
+                        <option value="blocked">Blocked</option>
+                        <option value="done">Done</option>
+                    </select>
+                </div>
+                <div class="form-group" id="task-blocker-group" style="display:none;">
+                    <label class="form-label" for="task-blocker">Blocker Note</label>
+                    <textarea id="task-blocker" class="form-textarea" placeholder="What's blocking this task?" maxlength="500"></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="task-priority">Priority</label>
+                    <select id="task-priority" class="form-select">
+                        <option value="1">1 - Low</option>
+                        <option value="2">2 - Below Normal</option>
+                        <option value="3" selected>3 - Normal</option>
+                        <option value="4">4 - High</option>
+                        <option value="5">5 - Critical</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="task-due-date">Due Date</label>
+                    <input type="date" id="task-due-date" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="task-tags">Tags</label>
+                    <input type="text" id="task-tags" class="form-input" placeholder="Comma-separated tags">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="app.closeModal('task-modal')">Cancel</button>
+                <button id="save-task-btn" class="btn btn-primary">
+                    <i class="fas fa-save"></i> Save Task
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Project Detail Modal -->
+    <div id="project-detail-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="project-detail-title">
+        <div class="modal modal-lg">
+            <div class="modal-header">
+                <h3 id="project-detail-title" class="modal-title">Project Details</h3>
+                <button class="btn-icon" onclick="app.closeModal('project-detail-modal')" aria-label="Close">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body" id="project-detail-body">
+            </div>
+        </div>
+    </div>
+
     <!-- Project Modal -->
     <div id="project-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="project-modal-title">
         <div class="modal">

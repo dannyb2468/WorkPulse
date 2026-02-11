@@ -41,6 +41,7 @@ class WorkPulseApp {
         this.setupSettings();
         this.setupExportImport();
         this.setupProjects();
+        this.setupTasks();
         this.setupAuth();
         this.handleHashNavigation();
         this.registerServiceWorker();
@@ -1013,6 +1014,222 @@ class WorkPulseApp {
                 </div>
             </div>`;
         }).join('');
+    }
+
+    // ========================================
+    // Tasks
+    // ========================================
+    setupTasks() {
+        const saveBtn = document.getElementById('save-task-btn');
+        if (saveBtn) saveBtn.addEventListener('click', () => this.saveTask());
+
+        // Show/hide blocker note
+        const statusSelect = document.getElementById('task-status');
+        if (statusSelect) statusSelect.addEventListener('change', () => {
+            const group = document.getElementById('task-blocker-group');
+            if (group) group.style.display = statusSelect.value === 'blocked' ? 'block' : 'none';
+        });
+
+        // Project detail event delegation
+        document.getElementById('project-detail-body')?.addEventListener('click', (e) => {
+            const editBtn = e.target.closest('.task-edit-btn');
+            const deleteBtn = e.target.closest('.task-delete-btn');
+            const addTaskBtn = e.target.closest('#project-detail-add-task');
+
+            if (deleteBtn) {
+                const id = deleteBtn.dataset.id;
+                this.deleteTask(id);
+            } else if (editBtn) {
+                const id = editBtn.dataset.id;
+                this.editTask(id);
+            } else if (addTaskBtn) {
+                this.openTaskModal(null, addTaskBtn.dataset.projectId);
+            }
+        });
+    }
+
+    openTaskModal(task = null, projectId = null) {
+        const title = document.getElementById('task-modal-title');
+        const idField = document.getElementById('task-id');
+        const nameField = document.getElementById('task-name');
+        const descField = document.getElementById('task-description');
+        const projectField = document.getElementById('task-project');
+        const statusField = document.getElementById('task-status');
+        const blockerField = document.getElementById('task-blocker');
+        const blockerGroup = document.getElementById('task-blocker-group');
+        const priorityField = document.getElementById('task-priority');
+        const dueDateField = document.getElementById('task-due-date');
+        const tagsField = document.getElementById('task-tags');
+
+        // Populate project dropdown
+        projectField.innerHTML = '<option value="">Select a project...</option>' +
+            this.data.projects.map(p =>
+                `<option value="${this.escapeHtml(p.id)}">${this.escapeHtml(p.name)}</option>`
+            ).join('');
+
+        if (task) {
+            title.textContent = 'Edit Task';
+            idField.value = task.id;
+            nameField.value = task.name || '';
+            descField.value = task.description || '';
+            projectField.value = task.projectId || '';
+            statusField.value = task.status || 'backlog';
+            blockerField.value = task.blockerNote || '';
+            blockerGroup.style.display = task.status === 'blocked' ? 'block' : 'none';
+            priorityField.value = task.priority || '3';
+            dueDateField.value = task.dueDate || '';
+            tagsField.value = (task.tags || []).join(', ');
+        } else {
+            title.textContent = 'New Task';
+            idField.value = '';
+            nameField.value = '';
+            descField.value = '';
+            projectField.value = projectId || '';
+            statusField.value = 'backlog';
+            blockerField.value = '';
+            blockerGroup.style.display = 'none';
+            priorityField.value = '3';
+            dueDateField.value = '';
+            tagsField.value = '';
+        }
+
+        this.openModal('task-modal');
+    }
+
+    saveTask() {
+        const id = document.getElementById('task-id').value;
+        const name = document.getElementById('task-name').value.trim();
+        const description = document.getElementById('task-description').value.trim();
+        const projectId = document.getElementById('task-project').value;
+        const status = document.getElementById('task-status').value;
+        const blockerNote = document.getElementById('task-blocker').value.trim();
+        const priority = parseInt(document.getElementById('task-priority').value) || 3;
+        const dueDate = document.getElementById('task-due-date').value;
+        const tagsRaw = document.getElementById('task-tags').value;
+
+        if (!name) {
+            this.showToast('Task name is required', 'error');
+            return;
+        }
+        if (!projectId) {
+            this.showToast('Please select a project', 'error');
+            return;
+        }
+        if (name.length > 200) {
+            this.showToast('Task name must be 200 characters or less', 'error');
+            return;
+        }
+
+        const tags = tagsRaw.split(',').map(t => t.trim()).filter(Boolean);
+        const now = new Date().toISOString();
+
+        if (id) {
+            const idx = this.data.tasks.findIndex(t => t.id === id);
+            if (idx !== -1) {
+                const old = this.data.tasks[idx];
+                const completedAt = status === 'done' && old.status !== 'done' ? now :
+                    (status !== 'done' ? null : old.completedAt);
+                this.data.tasks[idx] = {
+                    ...old, name, description, projectId, status, blockerNote,
+                    priority, dueDate, tags, completedAt, updatedAt: now
+                };
+                this.showToast('Task updated', 'success');
+            }
+        } else {
+            const maxSort = this.data.tasks
+                .filter(t => t.status === status)
+                .reduce((max, t) => Math.max(max, t.sortOrder || 0), 0);
+            this.data.tasks.push({
+                id: this.generateId(),
+                name, description, projectId, status, blockerNote,
+                priority, dueDate, tags,
+                completedAt: status === 'done' ? now : null,
+                createdAt: now, updatedAt: now,
+                sortOrder: maxSort + 1
+            });
+            this.showToast('Task created', 'success');
+        }
+
+        this.saveData();
+        this.closeModal('task-modal');
+        this.renderPage(this.currentPage);
+    }
+
+    editTask(id) {
+        const task = this.data.tasks.find(t => t.id === id);
+        if (task) this.openTaskModal(task);
+    }
+
+    deleteTask(id) {
+        const task = this.data.tasks.find(t => t.id === id);
+        if (!task) return;
+        this.confirmAction(`Delete task "${task.name}"?`, () => {
+            this.data.tasks = this.data.tasks.filter(t => t.id !== id);
+            this.saveData();
+            this.renderPage(this.currentPage);
+            this.showToast('Task deleted', 'success');
+        });
+    }
+
+    moveTaskStatus(taskId, newStatus) {
+        const task = this.data.tasks.find(t => t.id === taskId);
+        if (!task) return;
+        const now = new Date().toISOString();
+        task.status = newStatus;
+        task.completedAt = newStatus === 'done' ? now : (newStatus !== 'done' ? null : task.completedAt);
+        task.updatedAt = now;
+        this.saveData();
+    }
+
+    viewProjectDetail(id) {
+        const project = this.data.projects.find(p => p.id === id);
+        if (!project) return;
+
+        const title = document.getElementById('project-detail-title');
+        const body = document.getElementById('project-detail-body');
+        if (title) title.textContent = project.name;
+
+        const tasks = this.data.tasks.filter(t => t.projectId === id);
+        const statusLabels = { backlog: 'Backlog', 'this-week': 'This Week', 'in-progress': 'In Progress', blocked: 'Blocked', done: 'Done' };
+
+        let html = `<p style="color:var(--text-secondary);margin-bottom:16px;">${this.escapeHtml(project.description || 'No description')}</p>`;
+        html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+            <h4 style="font-weight:700;">Tasks (${tasks.length})</h4>
+            <button class="btn btn-primary btn-sm" id="project-detail-add-task" data-project-id="${this.escapeHtml(id)}">
+                <i class="fas fa-plus"></i> Add Task
+            </button>
+        </div>`;
+
+        if (tasks.length === 0) {
+            html += '<p style="color:var(--text-muted);text-align:center;padding:20px;">No tasks yet.</p>';
+        } else {
+            html += '<div class="task-list">';
+            tasks.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)).forEach(t => {
+                const urgency = this.getDueUrgency(t.dueDate);
+                const dueLabel = t.dueDate ? this.formatDateShort(t.dueDate) : '';
+                html += `<div class="task-list-item">
+                    <span class="status-dot ${t.status}"></span>
+                    <div class="task-list-info">
+                        <div class="task-list-name">${this.escapeHtml(t.name)}</div>
+                        <div class="task-list-meta">
+                            <span class="badge badge-muted">${statusLabels[t.status] || t.status}</span>
+                            ${dueLabel ? `<span class="task-due-date ${urgency}">${dueLabel}</span>` : ''}
+                            ${t.blockerNote ? `<span style="color:var(--danger);"><i class="fas fa-exclamation-triangle"></i> ${this.escapeHtml(t.blockerNote)}</span>` : ''}
+                        </div>
+                    </div>
+                    <button class="btn-icon btn-ghost task-edit-btn" data-id="${this.escapeHtml(t.id)}" aria-label="Edit task">
+                        <i class="fas fa-pen"></i>
+                    </button>
+                    <button class="btn-icon btn-ghost task-delete-btn" data-id="${this.escapeHtml(t.id)}" aria-label="Delete task">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>`;
+            });
+            html += '</div>';
+        }
+
+        if (body) body.innerHTML = html;
+        this.openModal('project-detail-modal');
     }
 
     // ========================================
