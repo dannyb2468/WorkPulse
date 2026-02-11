@@ -820,6 +820,7 @@ body {
     flex-direction: column;
     max-height: calc(100vh - 180px);
     box-shadow: var(--shadow-sm);
+    overflow: hidden;
 }
 
 .kanban-column-header {
@@ -831,8 +832,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    border-bottom: 2px solid var(--border);
-    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    border-bottom: 3px solid var(--border);
 }
 
 .kanban-column-header .count {
@@ -858,18 +858,16 @@ body {
     flex-direction: column;
     gap: 8px;
     min-height: 60px;
-    background: var(--bg);
-    border-radius: 0 0 var(--radius-lg) var(--radius-lg);
 }
 
 .kanban-column-body.drag-over {
-    background: rgba(13, 148, 136, 0.05);
-    border: 2px dashed var(--primary);
-    border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+    background: rgba(13, 148, 136, 0.08);
+    outline: 2px dashed var(--primary);
+    outline-offset: -2px;
 }
 
 .kanban-card {
-    background: var(--bg-card);
+    background: var(--bg);
     border: 1px solid var(--border);
     border-radius: var(--radius);
     padding: 12px;
@@ -880,6 +878,7 @@ body {
 
 .kanban-card:hover {
     box-shadow: var(--shadow);
+    transform: translateY(-1px);
 }
 
 .kanban-card.dragging {
