@@ -1263,15 +1263,36 @@ body {
     border-radius: var(--radius-lg);
 }
 
+.empty-state i.empty-icon {
+    font-size: 3rem;
+    margin-bottom: 16px;
+    opacity: 0.4;
+    color: var(--primary);
+}
+
 .empty-state i {
     font-size: 3rem;
     margin-bottom: 16px;
     opacity: 0.5;
 }
 
+.empty-state h4 {
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 8px;
+}
+
 .empty-state p {
-    font-size: 0.9375rem;
+    font-size: 0.875rem;
     max-width: 400px;
+    color: var(--text-secondary);
+    margin-bottom: 20px;
+    line-height: 1.6;
+}
+
+.empty-state .btn {
+    margin-top: 4px;
 }
 
 /* ========================================

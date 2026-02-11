@@ -972,8 +972,10 @@ class WorkPulseApp {
         if (projects.length === 0) {
             if (filterBar) filterBar.style.display = 'none';
             container.innerHTML = `<div class="empty-state">
-                <i class="fas fa-folder-open"></i>
-                <p>No projects yet. Create your first project to get started!</p>
+                <i class="fas fa-folder-open empty-icon"></i>
+                <h4>Start your first project</h4>
+                <p>Projects help you organize related tasks and track progress over time.</p>
+                <button class="btn btn-primary" onclick="app.openProjectModal()"><i class="fas fa-plus"></i> New Project</button>
             </div>`;
             return;
         }
@@ -1284,6 +1286,16 @@ class WorkPulseApp {
         let tasks = [...this.data.tasks];
         const projectFilter = filter?.value;
         if (projectFilter) tasks = tasks.filter(t => t.projectId === projectFilter);
+
+        if (tasks.length === 0) {
+            container.innerHTML = `<div class="empty-state">
+                <i class="fas fa-columns empty-icon"></i>
+                <h4>Your board is empty</h4>
+                <p>Add tasks to projects, then drag them across columns as you work through them.</p>
+                <button class="btn btn-primary" onclick="app.openTaskModal()"><i class="fas fa-plus"></i> New Task</button>
+            </div>`;
+            return;
+        }
 
         const statuses = [
             { key: 'backlog', label: 'Backlog' },
@@ -1673,8 +1685,10 @@ class WorkPulseApp {
             if (filterBar) filterBar.style.display = 'none';
             if (paginationEl) paginationEl.style.display = 'none';
             container.innerHTML = `<div class="empty-state">
-                <i class="fas fa-clock"></i>
-                <p>No activities logged yet. Start tracking your daily work!</p>
+                <i class="fas fa-clock empty-icon"></i>
+                <h4>Nothing logged yet</h4>
+                <p>Record what you work on each day — great for 1:1 prep and self-reviews.</p>
+                <button class="btn btn-primary" onclick="app.openActivityModal()"><i class="fas fa-plus"></i> Log Activity</button>
             </div>`;
             return;
         }
@@ -1913,8 +1927,10 @@ class WorkPulseApp {
         if (projects.length === 0) {
             if (summaryEl) summaryEl.style.display = 'none';
             container.innerHTML = `<div class="empty-state">
-                <i class="fas fa-chart-line"></i>
-                <p>No projects yet. Create projects first to track metrics!</p>
+                <i class="fas fa-chart-line empty-icon"></i>
+                <h4>No metrics tracked yet</h4>
+                <p>Measure the time your automations save to show your impact. Create a project first, then add metrics.</p>
+                <button class="btn btn-primary" onclick="app.openProjectModal()"><i class="fas fa-plus"></i> New Project</button>
             </div>`;
             return;
         }
@@ -2390,6 +2406,24 @@ class WorkPulseApp {
     // ========================================
     renderDashboard() {
         this.renderDashboardGreeting();
+
+        // Show welcome empty state if no data at all
+        const hasData = this.data.projects.length > 0 || this.data.tasks.length > 0 || this.data.activities.length > 0;
+        const welcomeContainer = document.getElementById('dashboard-today-focus');
+        if (!hasData && welcomeContainer) {
+            document.getElementById('dashboard-stats').innerHTML = '';
+            welcomeContainer.innerHTML = `<div class="empty-state" style="margin-bottom:24px;">
+                <i class="fas fa-rocket empty-icon"></i>
+                <h4>Welcome to WorkPulse!</h4>
+                <p>Start by creating a project, then add tasks and log your daily work to see your dashboard come alive.</p>
+                <button class="btn btn-primary" onclick="app.openProjectModal()"><i class="fas fa-plus"></i> New Project</button>
+            </div>`;
+            document.getElementById('dashboard-content').innerHTML = '';
+            document.getElementById('dashboard-deadlines').innerHTML = '';
+            document.getElementById('dashboard-snapshot').innerHTML = '';
+            return;
+        }
+
         this.renderDashboardStats();
         this.renderTodayFocus();
         this.renderActiveProjects();
