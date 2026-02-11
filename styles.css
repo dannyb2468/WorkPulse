@@ -1716,6 +1716,35 @@ body {
 }
 
 /* ========================================
+   Delta Indicators
+   ======================================== */
+.delta-up, .delta-down, .delta-neutral {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    vertical-align: middle;
+    margin-left: 4px;
+}
+
+.delta-up {
+    color: var(--success);
+}
+
+.delta-down {
+    color: var(--danger);
+}
+
+.delta-neutral {
+    color: var(--text-muted);
+}
+
+.delta-up i, .delta-down i, .delta-neutral i {
+    font-size: 0.5rem;
+}
+
+/* ========================================
    Streak & Karma Widget
    ======================================== */
 .streak-widget {

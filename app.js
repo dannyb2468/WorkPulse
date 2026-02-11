@@ -2418,6 +2418,9 @@ class WorkPulseApp {
         const blockedTasks = this.data.tasks.filter(t => t.status === 'blocked').length;
         const cum = this.data.metrics.length > 0 ? this.getCumulativeMetrics() : { totalSavedWeek: 0 };
 
+        // Get deltas for this week vs last week
+        const deltas = this.getSnapshotDeltas();
+
         container.innerHTML = `
             <div class="stat-card">
                 <div class="stat-icon primary"><i class="fas fa-folder-open"></i></div>
@@ -2425,11 +2428,11 @@ class WorkPulseApp {
             </div>
             <div class="stat-card">
                 <div class="stat-icon info"><i class="fas fa-play-circle"></i></div>
-                <div><div class="stat-value">${inProgressTasks}</div><div class="stat-label">In Progress</div></div>
+                <div><div class="stat-value">${inProgressTasks} ${this.renderDelta(deltas.inProgressDelta)}</div><div class="stat-label">In Progress</div></div>
             </div>
             <div class="stat-card">
                 <div class="stat-icon danger"><i class="fas fa-exclamation-triangle"></i></div>
-                <div><div class="stat-value">${blockedTasks}</div><div class="stat-label">Blocked</div></div>
+                <div><div class="stat-value">${blockedTasks} ${this.renderDelta(deltas.stuckDelta, true)}</div><div class="stat-label">Blocked</div></div>
             </div>
             <div class="stat-card">
                 <div class="stat-icon success"><i class="fas fa-clock"></i></div>
@@ -2804,6 +2807,36 @@ class WorkPulseApp {
         return parts.join('. ') + (parts.length > 0 ? '.' : 'No significant activity this week.');
     }
 
+    getSnapshotDeltas() {
+        const sorted = [...this.data.weeklySnapshots].sort((a, b) => b.weekStart.localeCompare(a.weekStart));
+        const current = sorted[0];
+        const previous = sorted[1];
+
+        if (!current || !previous) {
+            return { completedDelta: 0, inProgressDelta: 0, newTasksDelta: 0, stuckDelta: 0 };
+        }
+
+        return {
+            completedDelta: current.completed.length - previous.completed.length,
+            inProgressDelta: current.inProgress.length - previous.inProgress.length,
+            newTasksDelta: current.newTasks.length - previous.newTasks.length,
+            stuckDelta: current.stuck.length - previous.stuck.length
+        };
+    }
+
+    renderDelta(value, invertColors = false) {
+        if (value === 0 || value === undefined) {
+            return '<span class="delta-neutral"><i class="fas fa-minus"></i></span>';
+        }
+        const isPositive = value > 0;
+        // For "blocked", up is bad (invertColors=true)
+        const className = invertColors
+            ? (isPositive ? 'delta-down' : 'delta-up')
+            : (isPositive ? 'delta-up' : 'delta-down');
+        const icon = isPositive ? 'fa-arrow-up' : 'fa-arrow-down';
+        return `<span class="${className}"><i class="fas ${icon}"></i>${Math.abs(value)}</span>`;
+    }
+
     renderSnapshotHistory() {
         const container = document.getElementById('dashboard-snapshot');
         if (!container) return;
@@ -2819,9 +2852,16 @@ class WorkPulseApp {
 
         let html = '<div class="card"><h3 class="card-title"><i class="fas fa-history"></i> Weekly Snapshots</h3>';
 
-        snapshots.forEach(s => {
+        snapshots.forEach((s, idx) => {
             const completedNames = s.completed.map(id => this.data.tasks.find(t => t.id === id)?.name).filter(Boolean);
             const stuckNames = s.stuck.map(id => this.data.tasks.find(t => t.id === id)?.name).filter(Boolean);
+
+            // Compute deltas vs the next (older) snapshot
+            const prev = snapshots[idx + 1];
+            const cDelta = prev ? s.completed.length - prev.completed.length : 0;
+            const ipDelta = prev ? s.inProgress.length - prev.inProgress.length : 0;
+            const nDelta = prev ? s.newTasks.length - prev.newTasks.length : 0;
+            const sDelta = prev ? s.stuck.length - prev.stuck.length : 0;
 
             html += `<div class="snapshot-card">
                 <div class="snapshot-header">
@@ -2829,18 +2869,18 @@ class WorkPulseApp {
                 </div>
                 <div class="snapshot-sections">
                     <div class="snapshot-section completed">
-                        <div class="snapshot-section-label"><span class="badge badge-success">${s.completed.length}</span> Completed</div>
+                        <div class="snapshot-section-label"><span class="badge badge-success">${s.completed.length}</span> Completed ${prev ? this.renderDelta(cDelta) : ''}</div>
                         ${completedNames.slice(0, 3).map(n => `<div style="font-size:0.75rem;">${this.escapeHtml(n)}</div>`).join('')}
                         ${completedNames.length > 3 ? `<div style="font-size:0.75rem;color:var(--text-muted);">+${completedNames.length - 3} more</div>` : ''}
                     </div>
                     <div class="snapshot-section in-progress">
-                        <div class="snapshot-section-label"><span class="badge badge-info">${s.inProgress.length}</span> In Progress</div>
+                        <div class="snapshot-section-label"><span class="badge badge-info">${s.inProgress.length}</span> In Progress ${prev ? this.renderDelta(ipDelta) : ''}</div>
                     </div>
                     <div class="snapshot-section new-tasks">
-                        <div class="snapshot-section-label"><span class="badge badge-primary">${s.newTasks.length}</span> New</div>
+                        <div class="snapshot-section-label"><span class="badge badge-primary">${s.newTasks.length}</span> New ${prev ? this.renderDelta(nDelta) : ''}</div>
                     </div>
                     <div class="snapshot-section stuck">
-                        <div class="snapshot-section-label"><span class="badge badge-danger">${s.stuck.length}</span> Blocked</div>
+                        <div class="snapshot-section-label"><span class="badge badge-danger">${s.stuck.length}</span> Blocked ${prev ? this.renderDelta(sDelta, true) : ''}</div>
                         ${stuckNames.map(n => `<div style="font-size:0.75rem;">${this.escapeHtml(n)}</div>`).join('')}
                     </div>
                 </div>
