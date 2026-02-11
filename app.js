@@ -48,6 +48,7 @@ class WorkPulseApp {
         this.setupReports();
         this.setupSnapshots();
         this.setupCommandPalette();
+        this.setupKeyboardShortcuts();
         this.setupAuth();
         this.handleHashNavigation();
         this.registerServiceWorker();
@@ -271,6 +272,8 @@ class WorkPulseApp {
 
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
+                const shortcutsOverlay = document.getElementById('shortcuts-overlay');
+                if (shortcutsOverlay?.classList.contains('active')) { this.hideShortcutsOverlay(); return; }
                 const activeModal = document.querySelector('.modal-overlay.active');
                 if (activeModal) this.closeModal(activeModal.id);
             }
@@ -2786,6 +2789,49 @@ class WorkPulseApp {
             this.closeCommandPalette();
             cmd.action();
         }
+    }
+
+    // ========================================
+    // Keyboard Shortcuts
+    // ========================================
+    setupKeyboardShortcuts() {
+        document.addEventListener('keydown', (e) => {
+            // Don't fire in inputs/textareas/contenteditable
+            const tag = e.target.tagName;
+            if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || e.target.isContentEditable) return;
+            // Don't fire if command palette is open
+            if (this.commandPaletteOpen) return;
+            // Don't fire if a modal is open
+            if (document.querySelector('.modal-overlay.active')) return;
+            // Ignore combos with ctrl/meta/alt
+            if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+            switch (e.key) {
+                case 'n': case 'N': e.preventDefault(); this.openTaskModal(); break;
+                case 'a': case 'A': e.preventDefault(); this.openActivityModal(); break;
+                case 'p': case 'P': e.preventDefault(); this.openProjectModal(); break;
+                case 'd': case 'D': e.preventDefault(); this.navigateTo('dashboard'); break;
+                case 'b': case 'B': e.preventDefault(); this.navigateTo('kanban'); break;
+                case 'l': case 'L': e.preventDefault(); this.navigateTo('activity'); break;
+                case 't': case 'T': e.preventDefault();
+                    const next = this.data.settings.theme === 'dark' ? 'light' : 'dark';
+                    this.data.settings.theme = next;
+                    this.applyTheme(next);
+                    this.saveData();
+                    break;
+                case '?': e.preventDefault(); this.showShortcutsOverlay(); break;
+            }
+        });
+    }
+
+    showShortcutsOverlay() {
+        const overlay = document.getElementById('shortcuts-overlay');
+        if (overlay) overlay.classList.add('active');
+    }
+
+    hideShortcutsOverlay() {
+        const overlay = document.getElementById('shortcuts-overlay');
+        if (overlay) overlay.classList.remove('active');
     }
 }
 

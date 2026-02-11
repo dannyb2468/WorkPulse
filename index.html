@@ -689,6 +689,33 @@
         </div>
     </div>
 
+    <!-- Keyboard Shortcuts Overlay -->
+    <div id="shortcuts-overlay" class="shortcuts-overlay" role="dialog" aria-modal="true" aria-label="Keyboard shortcuts">
+        <div class="shortcuts-panel">
+            <div class="shortcuts-header">
+                <h3><i class="fas fa-keyboard"></i> Keyboard Shortcuts</h3>
+                <button class="btn-icon" onclick="app.hideShortcutsOverlay()" aria-label="Close"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="shortcuts-grid">
+                <div class="shortcuts-group">
+                    <h4>Navigation</h4>
+                    <div class="shortcut-row"><kbd>D</kbd><span>Dashboard</span></div>
+                    <div class="shortcut-row"><kbd>B</kbd><span>Task Board</span></div>
+                    <div class="shortcut-row"><kbd>L</kbd><span>Activity Log</span></div>
+                    <div class="shortcut-row"><kbd>Ctrl+K</kbd><span>Command Palette</span></div>
+                </div>
+                <div class="shortcuts-group">
+                    <h4>Actions</h4>
+                    <div class="shortcut-row"><kbd>N</kbd><span>New Task</span></div>
+                    <div class="shortcut-row"><kbd>A</kbd><span>Log Activity</span></div>
+                    <div class="shortcut-row"><kbd>P</kbd><span>New Project</span></div>
+                    <div class="shortcut-row"><kbd>T</kbd><span>Toggle Theme</span></div>
+                    <div class="shortcut-row"><kbd>?</kbd><span>This Help</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Command Palette -->
     <div id="command-palette" class="command-palette-overlay" role="dialog" aria-modal="true" aria-label="Command palette">
         <div class="command-palette">

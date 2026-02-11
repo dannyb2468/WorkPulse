@@ -1699,6 +1699,105 @@ body {
 }
 
 /* ========================================
+   Keyboard Shortcuts Overlay
+   ======================================== */
+.shortcuts-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 500;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    backdrop-filter: blur(4px);
+}
+
+.shortcuts-overlay.active {
+    display: flex;
+}
+
+.shortcuts-panel {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    width: 100%;
+    max-width: 520px;
+    box-shadow: var(--shadow-lg);
+    animation: modalIn 0.15s ease;
+    overflow: hidden;
+}
+
+.shortcuts-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 24px;
+    border-bottom: 1px solid var(--border);
+}
+
+.shortcuts-header h3 {
+    font-size: 1rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.shortcuts-header h3 i {
+    color: var(--primary);
+}
+
+.shortcuts-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    padding: 24px;
+}
+
+.shortcuts-group h4 {
+    font-size: 0.6875rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+}
+
+.shortcut-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 0;
+    font-size: 0.8125rem;
+}
+
+.shortcut-row kbd {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    padding: 3px 8px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg);
+    color: var(--text);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    min-width: 28px;
+    text-align: center;
+    font-weight: 600;
+}
+
+.shortcut-row span {
+    color: var(--text-secondary);
+}
+
+@media (max-width: 480px) {
+    .shortcuts-grid {
+        grid-template-columns: 1fr;
+        gap: 16px;
+    }
+}
+
+/* ========================================
    Command Palette
    ======================================== */
 .command-palette-overlay {
