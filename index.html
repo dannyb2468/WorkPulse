@@ -326,6 +326,72 @@
         </section>
     </main>
 
+    <!-- Project Modal -->
+    <div id="project-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="project-modal-title">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="project-modal-title" class="modal-title">New Project</h3>
+                <button class="btn-icon" onclick="app.closeModal('project-modal')" aria-label="Close">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="project-id">
+                <div class="form-group">
+                    <label class="form-label" for="project-name">Project Name *</label>
+                    <input type="text" id="project-name" class="form-input" placeholder="e.g., Invoice Processing Bot" required maxlength="100">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="project-description">Description</label>
+                    <textarea id="project-description" class="form-textarea" placeholder="Brief description of the project..." maxlength="500"></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="project-status">Status</label>
+                    <select id="project-status" class="form-select">
+                        <option value="active">Active</option>
+                        <option value="on-hold">On Hold</option>
+                        <option value="completed">Completed</option>
+                        <option value="archived">Archived</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="project-priority">Priority</label>
+                    <select id="project-priority" class="form-select">
+                        <option value="1">1 - Low</option>
+                        <option value="2">2 - Below Normal</option>
+                        <option value="3" selected>3 - Normal</option>
+                        <option value="4">4 - High</option>
+                        <option value="5">5 - Critical</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="project-tags">Tags</label>
+                    <input type="text" id="project-tags" class="form-input" placeholder="Comma-separated: rpa, finance, automation">
+                    <p class="form-hint">Separate tags with commas</p>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Color</label>
+                    <div class="color-options" id="project-color-options">
+                        <div class="color-option selected" data-color="#0d9488" style="background:#0d9488;" tabindex="0" role="radio" aria-label="Teal"></div>
+                        <div class="color-option" data-color="#2563eb" style="background:#2563eb;" tabindex="0" role="radio" aria-label="Blue"></div>
+                        <div class="color-option" data-color="#7c3aed" style="background:#7c3aed;" tabindex="0" role="radio" aria-label="Purple"></div>
+                        <div class="color-option" data-color="#dc2626" style="background:#dc2626;" tabindex="0" role="radio" aria-label="Red"></div>
+                        <div class="color-option" data-color="#d97706" style="background:#d97706;" tabindex="0" role="radio" aria-label="Amber"></div>
+                        <div class="color-option" data-color="#16a34a" style="background:#16a34a;" tabindex="0" role="radio" aria-label="Green"></div>
+                        <div class="color-option" data-color="#db2777" style="background:#db2777;" tabindex="0" role="radio" aria-label="Pink"></div>
+                        <div class="color-option" data-color="#64748b" style="background:#64748b;" tabindex="0" role="radio" aria-label="Gray"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="app.closeModal('project-modal')">Cancel</button>
+                <button id="save-project-btn" class="btn btn-primary">
+                    <i class="fas fa-save"></i> Save Project
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Auth Modal -->
     <div id="auth-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="auth-modal-title">
         <div class="modal modal-sm">

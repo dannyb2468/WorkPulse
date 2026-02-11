@@ -40,6 +40,7 @@ class WorkPulseApp {
         this.setupThemeToggle();
         this.setupSettings();
         this.setupExportImport();
+        this.setupProjects();
         this.setupAuth();
         this.handleHashNavigation();
         this.registerServiceWorker();
@@ -777,31 +778,251 @@ class WorkPulseApp {
     }
 
     // ========================================
-    // Page Renders (stubs to be implemented)
+    // Projects
     // ========================================
-    renderDashboard() {
-        // Implemented in Commit 9
+    setupProjects() {
+        const addBtn = document.getElementById('add-project-btn');
+        if (addBtn) addBtn.addEventListener('click', () => this.openProjectModal());
+
+        const saveBtn = document.getElementById('save-project-btn');
+        if (saveBtn) saveBtn.addEventListener('click', () => this.saveProject());
+
+        // Color picker
+        document.getElementById('project-color-options')?.addEventListener('click', (e) => {
+            const opt = e.target.closest('.color-option');
+            if (!opt) return;
+            document.querySelectorAll('#project-color-options .color-option').forEach(o => o.classList.remove('selected'));
+            opt.classList.add('selected');
+        });
+
+        // Filters
+        const statusFilter = document.getElementById('project-status-filter');
+        const searchFilter = document.getElementById('project-search');
+        if (statusFilter) statusFilter.addEventListener('change', () => this.renderProjects());
+        if (searchFilter) searchFilter.addEventListener('input', () => this.renderProjects());
+
+        // Event delegation for project cards
+        document.getElementById('projects-content')?.addEventListener('click', (e) => {
+            const card = e.target.closest('.project-card');
+            const editBtn = e.target.closest('.project-edit-btn');
+            const deleteBtn = e.target.closest('.project-delete-btn');
+
+            if (deleteBtn) {
+                e.stopPropagation();
+                const id = deleteBtn.dataset.id;
+                this.deleteProject(id);
+            } else if (editBtn) {
+                e.stopPropagation();
+                const id = editBtn.dataset.id;
+                this.editProject(id);
+            } else if (card) {
+                const id = card.dataset.id;
+                this.viewProjectDetail(id);
+            }
+        });
+    }
+
+    openProjectModal(project = null) {
+        const title = document.getElementById('project-modal-title');
+        const idField = document.getElementById('project-id');
+        const nameField = document.getElementById('project-name');
+        const descField = document.getElementById('project-description');
+        const statusField = document.getElementById('project-status');
+        const priorityField = document.getElementById('project-priority');
+        const tagsField = document.getElementById('project-tags');
+
+        if (project) {
+            title.textContent = 'Edit Project';
+            idField.value = project.id;
+            nameField.value = project.name || '';
+            descField.value = project.description || '';
+            statusField.value = project.status || 'active';
+            priorityField.value = project.priority || '3';
+            tagsField.value = (project.tags || []).join(', ');
+            document.querySelectorAll('#project-color-options .color-option').forEach(o => {
+                o.classList.toggle('selected', o.dataset.color === project.color);
+            });
+        } else {
+            title.textContent = 'New Project';
+            idField.value = '';
+            nameField.value = '';
+            descField.value = '';
+            statusField.value = 'active';
+            priorityField.value = '3';
+            tagsField.value = '';
+            document.querySelectorAll('#project-color-options .color-option').forEach((o, i) => {
+                o.classList.toggle('selected', i === 0);
+            });
+        }
+
+        this.openModal('project-modal');
+    }
+
+    saveProject() {
+        const id = document.getElementById('project-id').value;
+        const name = document.getElementById('project-name').value.trim();
+        const description = document.getElementById('project-description').value.trim();
+        const status = document.getElementById('project-status').value;
+        const priority = parseInt(document.getElementById('project-priority').value) || 3;
+        const tagsRaw = document.getElementById('project-tags').value;
+        const colorEl = document.querySelector('#project-color-options .color-option.selected');
+        const color = colorEl ? colorEl.dataset.color : '#0d9488';
+
+        if (!name) {
+            this.showToast('Project name is required', 'error');
+            return;
+        }
+        if (name.length > 100) {
+            this.showToast('Project name must be 100 characters or less', 'error');
+            return;
+        }
+
+        const tags = tagsRaw.split(',').map(t => t.trim()).filter(Boolean);
+        const now = new Date().toISOString();
+
+        if (id) {
+            const idx = this.data.projects.findIndex(p => p.id === id);
+            if (idx !== -1) {
+                const old = this.data.projects[idx];
+                this.data.projects[idx] = {
+                    ...old, name, description, status, priority, tags, color,
+                    updatedAt: now,
+                    completedAt: status === 'completed' && old.status !== 'completed' ? now : old.completedAt
+                };
+                this.showToast('Project updated', 'success');
+            }
+        } else {
+            this.data.projects.push({
+                id: this.generateId(),
+                name, description, status, priority, tags, color,
+                createdAt: now, updatedAt: now, completedAt: null
+            });
+            this.showToast('Project created', 'success');
+        }
+
+        this.saveData();
+        this.closeModal('project-modal');
+        this.renderProjects();
+    }
+
+    editProject(id) {
+        const project = this.data.projects.find(p => p.id === id);
+        if (project) this.openProjectModal(project);
+    }
+
+    deleteProject(id) {
+        const project = this.data.projects.find(p => p.id === id);
+        if (!project) return;
+
+        const taskCount = this.data.tasks.filter(t => t.projectId === id).length;
+        const activityCount = this.data.activities.filter(a => a.projectId === id).length;
+        const metricCount = this.data.metrics.filter(m => m.projectId === id).length;
+
+        let msg = `Delete project "${project.name}"?`;
+        const associations = [];
+        if (taskCount) associations.push(`${taskCount} task(s)`);
+        if (activityCount) associations.push(`${activityCount} activit${activityCount === 1 ? 'y' : 'ies'}`);
+        if (metricCount) associations.push(`${metricCount} metric(s)`);
+        if (associations.length) {
+            msg += `\n\nThis will also delete ${associations.join(', ')} associated with this project.`;
+        }
+
+        this.confirmAction(msg, () => {
+            this.data.projects = this.data.projects.filter(p => p.id !== id);
+            this.data.tasks = this.data.tasks.filter(t => t.projectId !== id);
+            this.data.activities = this.data.activities.filter(a => a.projectId !== id);
+            this.data.metrics = this.data.metrics.filter(m => m.projectId !== id);
+            this.saveData();
+            this.renderProjects();
+            this.showToast('Project deleted', 'success');
+        });
+    }
+
+    getProject(id) {
+        return this.data.projects.find(p => p.id === id);
+    }
+
+    viewProjectDetail(id) {
+        // Navigates to projects page with detail view (implemented with tasks in Commit 4)
     }
 
     renderProjects() {
-        // Implemented in Commit 3
+        const container = document.getElementById('projects-content');
+        const filterBar = document.getElementById('projects-filter-bar');
+        if (!container) return;
+
+        let projects = [...this.data.projects];
+
+        if (projects.length === 0) {
+            if (filterBar) filterBar.style.display = 'none';
+            container.innerHTML = `<div class="empty-state">
+                <i class="fas fa-folder-open"></i>
+                <p>No projects yet. Create your first project to get started!</p>
+            </div>`;
+            return;
+        }
+
+        if (filterBar) filterBar.style.display = 'flex';
+
+        const statusFilter = document.getElementById('project-status-filter')?.value;
+        const searchQuery = document.getElementById('project-search')?.value.toLowerCase();
+
+        if (statusFilter) projects = projects.filter(p => p.status === statusFilter);
+        if (searchQuery) projects = projects.filter(p =>
+            p.name.toLowerCase().includes(searchQuery) ||
+            (p.description || '').toLowerCase().includes(searchQuery) ||
+            (p.tags || []).some(t => t.toLowerCase().includes(searchQuery))
+        );
+
+        if (projects.length === 0) {
+            container.innerHTML = `<div class="empty-state">
+                <i class="fas fa-search"></i>
+                <p>No projects match your filters.</p>
+            </div>`;
+            return;
+        }
+
+        const statusLabels = { active: 'Active', 'on-hold': 'On Hold', completed: 'Completed', archived: 'Archived' };
+        const statusClasses = { active: 'badge-primary', 'on-hold': 'badge-warning', completed: 'badge-success', archived: 'badge-muted' };
+
+        container.innerHTML = projects.map(p => {
+            const taskCount = this.data.tasks.filter(t => t.projectId === p.id).length;
+            const doneTasks = this.data.tasks.filter(t => t.projectId === p.id && t.status === 'done').length;
+            const priorityDots = Array.from({ length: 5 }, (_, i) =>
+                `<span class="priority-dot ${i < p.priority ? 'filled' : ''}"></span>`
+            ).join('');
+
+            return `<div class="project-card" data-id="${this.escapeHtml(p.id)}" style="border-left-color:${this.escapeHtml(p.color || '#0d9488')}">
+                <div class="project-card-header">
+                    <span class="project-card-name">${this.escapeHtml(p.name)}</span>
+                    <div class="project-card-actions">
+                        <button class="btn-icon btn-ghost project-edit-btn" data-id="${this.escapeHtml(p.id)}" aria-label="Edit project">
+                            <i class="fas fa-pen"></i>
+                        </button>
+                        <button class="btn-icon btn-ghost project-delete-btn" data-id="${this.escapeHtml(p.id)}" aria-label="Delete project">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+                ${p.description ? `<p class="project-card-desc">${this.escapeHtml(p.description)}</p>` : ''}
+                <div class="project-card-meta">
+                    <span class="badge ${statusClasses[p.status] || 'badge-muted'}">${statusLabels[p.status] || p.status}</span>
+                    <span class="priority-dots">${priorityDots}</span>
+                    ${taskCount ? `<span class="tag"><i class="fas fa-tasks"></i> ${doneTasks}/${taskCount}</span>` : ''}
+                    ${(p.tags || []).map(t => `<span class="tag">${this.escapeHtml(t)}</span>`).join('')}
+                </div>
+            </div>`;
+        }).join('');
     }
 
-    renderKanban() {
-        // Implemented in Commit 5
-    }
-
-    renderActivities() {
-        // Implemented in Commit 6
-    }
-
-    renderMetrics() {
-        // Implemented in Commit 7
-    }
-
-    renderReports() {
-        // Implemented in Commit 8
-    }
+    // ========================================
+    // Page Renders (stubs)
+    // ========================================
+    renderDashboard() {}
+    renderKanban() {}
+    renderActivities() {}
+    renderMetrics() {}
+    renderReports() {}
 }
 
 // Initialize app
