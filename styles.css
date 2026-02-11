@@ -1699,6 +1699,55 @@ body {
 }
 
 /* ========================================
+   Streak & Karma Widget
+   ======================================== */
+.streak-widget {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 0;
+    margin-bottom: 8px;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
+.streak-info {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.streak-flame {
+    color: #f59e0b;
+    font-size: 1rem;
+}
+
+.streak-count {
+    font-weight: 700;
+    font-size: 0.9375rem;
+    color: #ffffff;
+}
+
+.streak-label {
+    font-size: 0.6875rem;
+    color: var(--sidebar-text);
+}
+
+.karma-badge {
+    font-size: 0.625rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 2px 8px;
+    border-radius: 999px;
+}
+
+.karma-badge.beginner { background: #374151; color: #9ca3af; }
+.karma-badge.contributor { background: #134e4a; color: #2dd4bf; }
+.karma-badge.achiever { background: #451a03; color: #fbbf24; }
+.karma-badge.expert { background: #2e1065; color: #a78bfa; }
+.karma-badge.legend { background: #422006; color: #fcd34d; }
+
+/* ========================================
    Today Focus Card
    ======================================== */
 .today-focus-card {

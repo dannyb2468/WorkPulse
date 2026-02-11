@@ -51,6 +51,7 @@ class WorkPulseApp {
         this.setupKeyboardShortcuts();
         this.setupAuth();
         this.handleHashNavigation();
+        this.renderStreakWidget();
         this.registerServiceWorker();
         window.addEventListener('hashchange', () => this.handleHashNavigation());
     }
@@ -90,7 +91,12 @@ class WorkPulseApp {
             jobTitle: '',
             bossName: '',
             onboardingComplete: false,
-            defaultView: 'dashboard'
+            defaultView: 'dashboard',
+            streak: 0,
+            longestStreak: 0,
+            lastActiveDate: '',
+            karma: 0,
+            karmaLevel: 'Beginner'
         };
     }
 
@@ -1185,10 +1191,16 @@ class WorkPulseApp {
     moveTaskStatus(taskId, newStatus) {
         const task = this.data.tasks.find(t => t.id === taskId);
         if (!task) return;
+        const wasDone = task.status === 'done';
         const now = new Date().toISOString();
         task.status = newStatus;
         task.completedAt = newStatus === 'done' ? now : (newStatus !== 'done' ? null : task.completedAt);
         task.updatedAt = now;
+        if (newStatus === 'done' && !wasDone) {
+            this.updateStreak();
+            const earlyBonus = task.dueDate && task.completedAt && task.completedAt.slice(0, 10) <= task.dueDate ? 5 : 0;
+            this.addKarma(3 + earlyBonus);
+        }
         this.saveData();
     }
 
@@ -1546,6 +1558,8 @@ class WorkPulseApp {
             this.showToast('Activity logged', 'success');
         }
 
+        this.updateStreak();
+        this.addKarma(1);
         this.saveData();
         this.closeModal('activity-modal');
         this.renderActivities();
@@ -1570,6 +1584,8 @@ class WorkPulseApp {
             createdAt: now
         });
 
+        this.updateStreak();
+        this.addKarma(1);
         this.saveData();
         if (input) input.value = '';
         this.showToast('Activity logged', 'success');
@@ -2401,6 +2417,9 @@ class WorkPulseApp {
         } else {
             task.status = 'done';
             task.completedAt = now;
+            this.updateStreak();
+            const earlyBonus = task.dueDate && now.slice(0, 10) <= task.dueDate ? 5 : 0;
+            this.addKarma(3 + earlyBonus);
         }
         task.updatedAt = now;
         this.saveData();
@@ -2741,6 +2760,82 @@ class WorkPulseApp {
 
         html += '</div>';
         container.innerHTML = html;
+    }
+
+    // ========================================
+    // Streaks & Karma
+    // ========================================
+    updateStreak() {
+        const today = this.toLocalDateString();
+        const last = this.data.settings.lastActiveDate;
+        if (last === today) return; // Already counted today
+
+        if (last) {
+            const lastDate = new Date(last);
+            const todayDate = new Date(today);
+            const diffDays = Math.round((todayDate - lastDate) / 86400000);
+            if (diffDays === 1) {
+                this.data.settings.streak++;
+            } else {
+                this.data.settings.streak = 1;
+            }
+        } else {
+            this.data.settings.streak = 1;
+        }
+
+        this.data.settings.lastActiveDate = today;
+        if (this.data.settings.streak > (this.data.settings.longestStreak || 0)) {
+            this.data.settings.longestStreak = this.data.settings.streak;
+        }
+
+        // Milestone celebrations
+        const streak = this.data.settings.streak;
+        if ([7, 30, 100].includes(streak)) {
+            this.showStreakCelebration(streak);
+        }
+
+        this.renderStreakWidget();
+    }
+
+    addKarma(points) {
+        this.data.settings.karma = (this.data.settings.karma || 0) + points;
+        const karma = this.data.settings.karma;
+        if (karma >= 1000) this.data.settings.karmaLevel = 'Legend';
+        else if (karma >= 500) this.data.settings.karmaLevel = 'Expert';
+        else if (karma >= 200) this.data.settings.karmaLevel = 'Achiever';
+        else if (karma >= 50) this.data.settings.karmaLevel = 'Contributor';
+        else this.data.settings.karmaLevel = 'Beginner';
+        this.renderStreakWidget();
+    }
+
+    renderStreakWidget() {
+        let widget = document.getElementById('streak-widget');
+        if (!widget) {
+            const footer = document.querySelector('.sidebar-footer');
+            if (!footer) return;
+            widget = document.createElement('div');
+            widget.id = 'streak-widget';
+            widget.className = 'streak-widget';
+            footer.insertBefore(widget, footer.firstChild);
+        }
+
+        const streak = this.data.settings.streak || 0;
+        const level = this.data.settings.karmaLevel || 'Beginner';
+        const karma = this.data.settings.karma || 0;
+        const levelClass = level.toLowerCase();
+
+        widget.innerHTML = `<div class="streak-info">
+            <i class="fas fa-fire streak-flame"></i>
+            <span class="streak-count">${streak}</span>
+            <span class="streak-label">day${streak !== 1 ? 's' : ''}</span>
+        </div>
+        <span class="karma-badge ${levelClass}" title="${karma} karma">${this.escapeHtml(level)}</span>`;
+    }
+
+    showStreakCelebration(count) {
+        const milestones = { 7: 'One week streak!', 30: 'One month streak!', 100: '100-day streak!' };
+        const msg = milestones[count] || `${count}-day streak!`;
+        this.showToast(`${msg} Keep it going!`, 'success');
     }
 
     // ========================================
