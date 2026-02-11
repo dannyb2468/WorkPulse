@@ -1,7 +1,7 @@
 {
-    "name": "WorkPulse - RPA Work Tracker",
+    "name": "WorkPulse - Work Tracker",
     "short_name": "WorkPulse",
-    "description": "Track projects, tasks, daily work, and automation ROI metrics for RPA analysts",
+    "description": "Track projects, tasks, daily work, and value metrics",
     "start_url": "./index.html",
     "display": "standalone",
     "background_color": "#0f2937",
