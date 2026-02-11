@@ -42,6 +42,7 @@ class WorkPulseApp {
         this.setupExportImport();
         this.setupProjects();
         this.setupTasks();
+        this.setupKanban();
         this.setupAuth();
         this.handleHashNavigation();
         this.registerServiceWorker();
@@ -1233,10 +1234,185 @@ class WorkPulseApp {
     }
 
     // ========================================
+    // Kanban
+    // ========================================
+    setupKanban() {
+        const addBtn = document.getElementById('add-task-kanban-btn');
+        if (addBtn) addBtn.addEventListener('click', () => this.openTaskModal());
+
+        const filter = document.getElementById('kanban-project-filter');
+        if (filter) filter.addEventListener('change', () => this.renderKanban());
+    }
+
+    renderKanban() {
+        const container = document.getElementById('kanban-content');
+        const filter = document.getElementById('kanban-project-filter');
+        if (!container) return;
+
+        // Populate project filter
+        if (filter) {
+            const val = filter.value;
+            filter.innerHTML = '<option value="">All Projects</option>' +
+                this.data.projects.map(p =>
+                    `<option value="${this.escapeHtml(p.id)}">${this.escapeHtml(p.name)}</option>`
+                ).join('');
+            filter.value = val;
+        }
+
+        let tasks = [...this.data.tasks];
+        const projectFilter = filter?.value;
+        if (projectFilter) tasks = tasks.filter(t => t.projectId === projectFilter);
+
+        const statuses = [
+            { key: 'backlog', label: 'Backlog' },
+            { key: 'this-week', label: 'This Week' },
+            { key: 'in-progress', label: 'In Progress' },
+            { key: 'blocked', label: 'Blocked' },
+            { key: 'done', label: 'Done' }
+        ];
+
+        const isTouchDevice = 'ontouchstart' in window;
+
+        container.innerHTML = statuses.map(s => {
+            const colTasks = tasks.filter(t => t.status === s.key)
+                .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+
+            return `<div class="kanban-column" data-status="${s.key}">
+                <div class="kanban-column-header">
+                    <span>${s.label}</span>
+                    <span class="count">${colTasks.length}</span>
+                </div>
+                <div class="kanban-column-body" data-status="${s.key}">
+                    ${colTasks.map(t => {
+                        const project = this.getProject(t.projectId);
+                        const urgency = this.getDueUrgency(t.dueDate);
+                        return `<div class="kanban-card" draggable="true" data-task-id="${this.escapeHtml(t.id)}"
+                            style="border-left-color:${this.escapeHtml(project?.color || '#0d9488')}">
+                            <div class="kanban-card-title">${this.escapeHtml(t.name)}</div>
+                            <div class="kanban-card-meta">
+                                ${project ? `<span class="kanban-card-project">${this.escapeHtml(project.name)}</span>` : ''}
+                                ${t.dueDate ? `<span class="task-due-date ${urgency}">${this.formatDateShort(t.dueDate)}</span>` : ''}
+                                ${t.priority >= 4 ? '<span class="badge badge-warning"><i class="fas fa-arrow-up"></i></span>' : ''}
+                                ${t.blockerNote ? '<span class="badge badge-danger"><i class="fas fa-ban"></i></span>' : ''}
+                            </div>
+                            ${isTouchDevice ? `<select class="form-select kanban-mobile-move" data-task-id="${this.escapeHtml(t.id)}" style="margin-top:8px;font-size:0.75rem;padding:4px 8px;">
+                                ${statuses.map(st => `<option value="${st.key}" ${st.key === t.status ? 'selected' : ''}>${st.label}</option>`).join('')}
+                            </select>` : ''}
+                        </div>`;
+                    }).join('') || '<p style="text-align:center;color:var(--text-muted);font-size:0.8125rem;padding:12px;">No tasks</p>'}
+                </div>
+            </div>`;
+        }).join('');
+
+        this.setupKanbanDragDrop();
+        this.setupKanbanCardClicks();
+    }
+
+    setupKanbanDragDrop() {
+        const cards = document.querySelectorAll('.kanban-card');
+        const columns = document.querySelectorAll('.kanban-column-body');
+
+        cards.forEach(card => {
+            card.addEventListener('dragstart', (e) => {
+                card.classList.add('dragging');
+                e.dataTransfer.setData('text/plain', card.dataset.taskId);
+                e.dataTransfer.effectAllowed = 'move';
+            });
+            card.addEventListener('dragend', () => {
+                card.classList.remove('dragging');
+                columns.forEach(col => col.classList.remove('drag-over'));
+            });
+        });
+
+        columns.forEach(col => {
+            col.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                col.classList.add('drag-over');
+            });
+            col.addEventListener('dragleave', (e) => {
+                if (!col.contains(e.relatedTarget)) {
+                    col.classList.remove('drag-over');
+                }
+            });
+            col.addEventListener('drop', (e) => {
+                e.preventDefault();
+                col.classList.remove('drag-over');
+                const taskId = e.dataTransfer.getData('text/plain');
+                const newStatus = col.dataset.status;
+                if (taskId && newStatus) {
+                    this.handleKanbanDrop(taskId, newStatus, e, col);
+                }
+            });
+        });
+    }
+
+    handleKanbanDrop(taskId, newStatus, event, column) {
+        const task = this.data.tasks.find(t => t.id === taskId);
+        if (!task) return;
+
+        this.moveTaskStatus(taskId, newStatus);
+
+        // Calculate sort order based on drop position
+        const cards = [...column.querySelectorAll('.kanban-card:not(.dragging)')];
+        const colTasks = this.data.tasks
+            .filter(t => t.status === newStatus && t.id !== taskId)
+            .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+
+        let newOrder;
+        if (colTasks.length === 0) {
+            newOrder = 1;
+        } else {
+            const afterCard = cards.find(c => {
+                const rect = c.getBoundingClientRect();
+                return event.clientY < rect.top + rect.height / 2;
+            });
+            if (!afterCard) {
+                newOrder = (colTasks[colTasks.length - 1].sortOrder || 0) + 1;
+            } else {
+                const afterTask = colTasks.find(t => t.id === afterCard.dataset.taskId);
+                const afterIdx = colTasks.indexOf(afterTask);
+                if (afterIdx === 0) {
+                    newOrder = (colTasks[0].sortOrder || 0) - 1;
+                } else {
+                    const before = colTasks[afterIdx - 1];
+                    newOrder = ((before.sortOrder || 0) + (afterTask.sortOrder || 0)) / 2;
+                }
+            }
+        }
+
+        task.sortOrder = newOrder;
+        this.saveData();
+        this.renderKanban();
+    }
+
+    setupKanbanCardClicks() {
+        // Click to edit
+        document.querySelectorAll('.kanban-card').forEach(card => {
+            card.addEventListener('click', (e) => {
+                if (e.target.closest('select')) return;
+                const taskId = card.dataset.taskId;
+                this.editTask(taskId);
+            });
+        });
+
+        // Mobile move dropdown
+        document.querySelectorAll('.kanban-mobile-move').forEach(select => {
+            select.addEventListener('change', (e) => {
+                e.stopPropagation();
+                const taskId = select.dataset.taskId;
+                const newStatus = select.value;
+                this.moveTaskStatus(taskId, newStatus);
+                this.saveData();
+                this.renderKanban();
+            });
+        });
+    }
+
+    // ========================================
     // Page Renders (stubs)
     // ========================================
     renderDashboard() {}
-    renderKanban() {}
     renderActivities() {}
     renderMetrics() {}
     renderReports() {}
