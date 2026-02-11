@@ -2285,6 +2285,7 @@ class WorkPulseApp {
     renderDashboard() {
         this.renderDashboardGreeting();
         this.renderDashboardStats();
+        this.renderTodayFocus();
         this.renderActiveProjects();
         this.renderTaskCompletionChart();
         this.renderHoursSavedChart();
@@ -2329,6 +2330,110 @@ class WorkPulseApp {
                 <div><div class="stat-value">${cum.totalSavedWeek.toFixed(1)}h</div><div class="stat-label">Hours Saved/Week</div></div>
             </div>
         `;
+    }
+
+    renderTodayFocus() {
+        const container = document.getElementById('dashboard-today-focus');
+        if (!container) return;
+
+        const today = this.toLocalDateString();
+        const focusTasks = this.data.tasks.filter(t => {
+            if (t.status === 'done' && t.completedAt && t.completedAt.slice(0, 10) === today) return true;
+            if (t.status === 'in-progress') return true;
+            if (t.dueDate === today && t.status !== 'done') return true;
+            if (t.dueDate && t.dueDate < today && t.status !== 'done') return true;
+            return false;
+        });
+
+        if (focusTasks.length === 0 && this.data.tasks.length === 0) {
+            container.innerHTML = '';
+            return;
+        }
+
+        const doneCount = focusTasks.filter(t => t.status === 'done').length;
+
+        let html = `<div class="today-focus-card">
+            <div class="today-focus-header">
+                <h3><i class="fas fa-crosshairs"></i> Today's Focus</h3>
+                <span class="today-focus-count">${doneCount}/${focusTasks.length} done</span>
+            </div>`;
+
+        if (focusTasks.length === 0) {
+            html += '<div class="today-focus-empty"><i class="fas fa-check-circle" style="color:var(--success);margin-right:6px;"></i>All clear! Add a task to focus on today.</div>';
+        } else {
+            html += '<ul class="today-focus-list">';
+            focusTasks.sort((a, b) => {
+                if (a.status === 'done' && b.status !== 'done') return 1;
+                if (a.status !== 'done' && b.status === 'done') return -1;
+                return 0;
+            }).forEach(t => {
+                const isDone = t.status === 'done';
+                const isOverdue = t.dueDate && t.dueDate < today && !isDone;
+                const project = this.getProject(t.projectId);
+                html += `<li class="today-focus-item ${isDone ? 'is-done' : ''}">
+                    <input type="checkbox" ${isDone ? 'checked' : ''} onchange="app.toggleTodayTask('${this.escapeHtml(t.id)}')">
+                    ${isOverdue ? '<span class="overdue-dot" title="Overdue"></span>' : ''}
+                    <span class="task-label">${this.escapeHtml(t.name)}</span>
+                    ${project ? `<span class="task-project">${this.escapeHtml(project.name)}</span>` : ''}
+                </li>`;
+            });
+            html += '</ul>';
+        }
+
+        html += `<div class="today-focus-quick-add">
+            <input type="text" id="today-quick-add" placeholder="Add a task for today..." onkeydown="if(event.key==='Enter')app.quickAddTodayTask(this.value)">
+            <button class="btn btn-primary btn-sm" onclick="app.quickAddTodayTask(document.getElementById('today-quick-add').value)" aria-label="Add task">
+                <i class="fas fa-plus"></i>
+            </button>
+        </div>`;
+
+        html += '</div>';
+        container.innerHTML = html;
+    }
+
+    toggleTodayTask(taskId) {
+        const task = this.data.tasks.find(t => t.id === taskId);
+        if (!task) return;
+        const now = new Date().toISOString();
+        if (task.status === 'done') {
+            task.status = 'in-progress';
+            task.completedAt = null;
+        } else {
+            task.status = 'done';
+            task.completedAt = now;
+        }
+        task.updatedAt = now;
+        this.saveData();
+        this.renderTodayFocus();
+        this.renderDashboardStats();
+    }
+
+    quickAddTodayTask(name) {
+        name = (name || '').trim();
+        if (!name) return;
+        const now = new Date().toISOString();
+        const today = this.toLocalDateString();
+        this.data.tasks.push({
+            id: this.generateId(),
+            name,
+            description: '',
+            projectId: '',
+            status: 'in-progress',
+            blockerNote: '',
+            priority: 3,
+            dueDate: today,
+            tags: [],
+            completedAt: null,
+            createdAt: now,
+            updatedAt: now,
+            sortOrder: 0
+        });
+        this.saveData();
+        const input = document.getElementById('today-quick-add');
+        if (input) input.value = '';
+        this.renderTodayFocus();
+        this.renderDashboardStats();
+        this.showToast('Task added to today', 'success');
     }
 
     renderActiveProjects() {

@@ -1699,6 +1699,131 @@ body {
 }
 
 /* ========================================
+   Today Focus Card
+   ======================================== */
+.today-focus-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--primary);
+    border-radius: var(--radius-lg);
+    padding: 20px 24px;
+    margin-bottom: 24px;
+    box-shadow: var(--shadow-sm);
+}
+
+.today-focus-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+}
+
+.today-focus-header h3 {
+    font-size: 1rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.today-focus-header h3 i {
+    color: var(--primary);
+}
+
+.today-focus-count {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.today-focus-list {
+    list-style: none;
+}
+
+.today-focus-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 4px;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.875rem;
+    transition: background var(--transition);
+}
+
+.today-focus-item:last-child {
+    border-bottom: none;
+}
+
+.today-focus-item:hover {
+    background: var(--bg-hover);
+}
+
+.today-focus-item input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--primary);
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.today-focus-item .task-label {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.today-focus-item.is-done .task-label {
+    text-decoration: line-through;
+    color: var(--text-muted);
+}
+
+.today-focus-item .overdue-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--danger);
+    flex-shrink: 0;
+}
+
+.today-focus-item .task-project {
+    font-size: 0.6875rem;
+    color: var(--text-muted);
+    flex-shrink: 0;
+}
+
+.today-focus-quick-add {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+}
+
+.today-focus-quick-add input {
+    flex: 1;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 6px 12px;
+    background: var(--bg-input);
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 0.8125rem;
+}
+
+.today-focus-quick-add input:focus {
+    outline: none;
+    border-color: var(--border-focus);
+}
+
+.today-focus-empty {
+    text-align: center;
+    padding: 16px;
+    color: var(--text-muted);
+    font-size: 0.8125rem;
+}
+
+/* ========================================
    Keyboard Shortcuts Overlay
    ======================================== */
 .shortcuts-overlay {
