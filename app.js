@@ -1046,8 +1046,10 @@ class WorkPulseApp {
                 this.deleteTask(id);
             } else if (editBtn) {
                 const id = editBtn.dataset.id;
+                this.closeModal('project-detail-modal');
                 this.editTask(id);
             } else if (addTaskBtn) {
+                this.closeModal('project-detail-modal');
                 this.openTaskModal(null, addTaskBtn.dataset.projectId);
             }
         });
@@ -1934,7 +1936,7 @@ class WorkPulseApp {
                 </div>
                 <div class="metric-row"><span class="metric-row-label">Manual time/run</span><span class="metric-row-value">${metric.hoursToRun}h</span></div>
                 <div class="metric-row"><span class="metric-row-label">Runs/week</span><span class="metric-row-value">${metric.runsPerWeek}</span></div>
-                <div class="metric-row"><span class="metric-row-label">Bot duration/run</span><span class="metric-row-value">${metric.runDurationMinutes}min</span></div>
+                <div class="metric-row"><span class="metric-row-label">Automated duration/run</span><span class="metric-row-value">${metric.runDurationMinutes}min</span></div>
                 <div class="metric-row"><span class="metric-row-label">Hours saved/week</span><span class="metric-row-value" style="color:var(--success);font-weight:700;">${weekSaved.toFixed(1)}h</span></div>
                 <div class="metric-row"><span class="metric-row-label">Hours saved/year</span><span class="metric-row-value">${yearSaved.toFixed(0)}h</span></div>
                 <div class="metric-row"><span class="metric-row-label">Build investment</span><span class="metric-row-value">${metric.hoursToBuild}h</span></div>
@@ -2168,7 +2170,7 @@ class WorkPulseApp {
                     <div class="stat-card" style="padding:12px;"><div class="stat-value" style="font-size:1.25rem;">${cum.totalPeople}</div><div class="stat-label">people impacted</div></div>
                 </div>`;
                 metricsSummary.forEach(m => {
-                    html += `<div class="report-item"><i class="fas fa-robot" style="color:var(--primary);margin-top:2px;"></i>
+                    html += `<div class="report-item"><i class="fas fa-chart-bar" style="color:var(--primary);margin-top:2px;"></i>
                         <span><strong>${this.escapeHtml(m.projectName)}</strong>: ${m.weekSaved.toFixed(1)}h/week saved (${(m.roi * 100).toFixed(0)}% ROI)</span></div>`;
                 });
                 html += '</div>';
