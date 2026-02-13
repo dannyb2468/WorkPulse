@@ -522,21 +522,14 @@ class WorkPulseApp {
             if (!window.firebaseModules) return;
             const fm = window.firebaseModules;
 
-            // Firebase config - replace with your project's config
             const firebaseConfig = {
-                apiKey: "YOUR_API_KEY",
-                authDomain: "YOUR_PROJECT.firebaseapp.com",
-                projectId: "YOUR_PROJECT_ID",
-                storageBucket: "YOUR_PROJECT.appspot.com",
-                messagingSenderId: "YOUR_SENDER_ID",
-                appId: "YOUR_APP_ID"
+                apiKey: "AIzaSyDCbPJpvIcE0kcMy_YMJLjLKmzTZrg7O1Q",
+                authDomain: "work-flow-39ac8.firebaseapp.com",
+                projectId: "work-flow-39ac8",
+                storageBucket: "work-flow-39ac8.firebasestorage.app",
+                messagingSenderId: "1060331351854",
+                appId: "1:1060331351854:web:1c8950a99245fa1d6214bf"
             };
-
-            // Only init if config is set
-            if (firebaseConfig.apiKey === 'YOUR_API_KEY') {
-                console.log('Firebase not configured. Cloud sync disabled.');
-                return;
-            }
 
             try {
                 this.firebaseApp = fm.initializeApp(firebaseConfig);
