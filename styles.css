@@ -796,13 +796,20 @@ body {
 .status-dot.in-progress { background: var(--primary); }
 .status-dot.blocked { background: var(--danger); }
 .status-dot.done { background: var(--success); }
+.status-dot.rejected { background: #78716c; }
+
+/* Project status dots */
+.status-dot.active { background: var(--primary); }
+.status-dot.on-hold { background: var(--warning); }
+.status-dot.completed { background: var(--success); }
+.status-dot.archived { background: var(--text-muted); }
 
 /* ========================================
    Kanban Board
    ======================================== */
 .kanban-board {
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    grid-template-columns: repeat(6, 1fr);
     gap: 12px;
     min-height: 400px;
 }
@@ -845,6 +852,7 @@ body {
 .kanban-column[data-status="in-progress"] .kanban-column-header { border-bottom-color: var(--primary); }
 .kanban-column[data-status="blocked"] .kanban-column-header { border-bottom-color: var(--danger); }
 .kanban-column[data-status="done"] .kanban-column-header { border-bottom-color: var(--success); }
+.kanban-column[data-status="rejected"] .kanban-column-header { border-bottom-color: #78716c; }
 
 .kanban-column-body {
     padding: 12px;
@@ -1894,6 +1902,12 @@ body {
     color: var(--text-muted);
 }
 
+.today-focus-item.is-rejected .task-label {
+    text-decoration: line-through;
+    color: #78716c;
+    font-style: italic;
+}
+
 .today-focus-item .overdue-dot {
     width: 6px;
     height: 6px;
@@ -2156,6 +2170,169 @@ body {
     text-align: center;
     color: var(--text-muted);
     font-size: 0.8125rem;
+}
+
+/* ========================================
+   Work Log Report (hierarchical)
+   ======================================== */
+.worklog-project {
+    margin-bottom: 28px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+}
+
+.worklog-project:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+}
+
+.worklog-project-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 700;
+    font-size: 1rem;
+    margin-bottom: 12px;
+}
+
+.worklog-task {
+    margin-left: 12px;
+    margin-bottom: 8px;
+    padding: 8px 12px;
+    border-left: 3px solid var(--primary);
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    background: var(--bg);
+}
+
+.worklog-task-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    font-size: 0.875rem;
+    margin-bottom: 2px;
+}
+
+.worklog-activity {
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+    padding: 2px 0 2px 22px;
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+}
+
+.worklog-activity-date {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    flex-shrink: 0;
+    min-width: 52px;
+}
+
+.worklog-unlinked {
+    margin-left: 12px;
+    margin-bottom: 8px;
+    padding: 6px 12px;
+    border-left: 3px solid var(--text-muted);
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    background: var(--bg);
+}
+
+/* ========================================
+   Task Activity Log (in task modal)
+   ======================================== */
+.task-activity-item {
+    display: flex;
+    gap: 10px;
+    padding: 8px 10px;
+    border-left: 2px solid var(--primary);
+    background: var(--bg);
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    margin-bottom: 6px;
+    font-size: 0.8125rem;
+    transition: background var(--transition);
+}
+
+.task-activity-item:hover {
+    background: var(--bg-hover);
+}
+
+.task-activity-entry {
+    flex: 1;
+    color: var(--text);
+    min-width: 0;
+}
+
+.task-activity-date {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
+.task-activities-empty {
+    text-align: center;
+    padding: 12px;
+    color: var(--text-muted);
+    font-size: 0.8125rem;
+    font-style: italic;
+}
+
+/* ========================================
+   Status Picker Popover
+   ======================================== */
+.status-picker {
+    display: none;
+    position: fixed;
+    z-index: 400;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-lg);
+    padding: 4px;
+    min-width: 150px;
+    animation: modalIn 0.1s ease;
+}
+
+.status-picker.active {
+    display: block;
+}
+
+.status-picker-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-radius: var(--radius-sm);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--text);
+    cursor: pointer;
+    transition: background var(--transition);
+}
+
+.status-picker-option:hover {
+    background: var(--bg-hover);
+}
+
+.status-picker-option.current {
+    background: var(--primary-light);
+    font-weight: 700;
+}
+
+.status-picker-option .status-dot {
+    width: 10px;
+    height: 10px;
+}
+
+.status-badge-clickable {
+    cursor: pointer;
+    transition: transform var(--transition), box-shadow var(--transition);
+}
+
+.status-badge-clickable:hover {
+    transform: scale(1.3);
+    filter: brightness(1.2);
 }
 
 /* ========================================

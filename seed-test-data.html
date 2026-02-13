@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html>
+<head><title>WorkPulse - Seed Test Data</title></head>
+<body style="font-family:system-ui;max-width:600px;margin:60px auto;padding:20px;">
+<h1>WorkPulse Test Data Seeder</h1>
+<p>This will replace your current WorkPulse data with realistic test data for testing features.</p>
+<button id="seed" style="padding:12px 24px;font-size:1.1rem;cursor:pointer;background:#0d9488;color:#fff;border:none;border-radius:8px;">Seed Test Data</button>
+<button id="clear" style="padding:12px 24px;font-size:1.1rem;cursor:pointer;background:#dc2626;color:#fff;border:none;border-radius:8px;margin-left:8px;">Clear All Data</button>
+<pre id="log" style="margin-top:20px;background:#111;color:#0f0;padding:16px;border-radius:8px;font-size:0.85rem;overflow:auto;max-height:500px;"></pre>
+<script>
+function id() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 9); }
+function iso(daysAgo, hour = 10) {
+    const d = new Date();
+    d.setDate(d.getDate() - daysAgo);
+    d.setHours(hour, Math.floor(Math.random()*60), 0, 0);
+    return d.toISOString();
+}
+function dateStr(daysAgo) {
+    const d = new Date();
+    d.setDate(d.getDate() - daysAgo);
+    return d.toISOString().slice(0,10);
+}
+function futureDate(daysAhead) {
+    const d = new Date();
+    d.setDate(d.getDate() + daysAhead);
+    return d.toISOString().slice(0,10);
+}
+
+document.getElementById('seed').onclick = function() {
+    const log = document.getElementById('log');
+    log.textContent = '';
+    function print(msg) { log.textContent += msg + '\n'; }
+
+    // --- Projects ---
+    const p1 = id(), p2 = id(), p3 = id(), p4 = id();
+    const projects = [
+        { id: p1, name: 'API Gateway Migration', description: 'Migrate legacy REST endpoints to new API gateway with rate limiting and auth', status: 'active', priority: 1, tags: ['backend','infrastructure'], color: '#0d9488', createdAt: iso(30), updatedAt: iso(2), completedAt: null },
+        { id: p2, name: 'Customer Dashboard Redesign', description: 'Redesign the customer-facing dashboard with new analytics widgets', status: 'active', priority: 2, tags: ['frontend','ux'], color: '#3b82f6', createdAt: iso(21), updatedAt: iso(1), completedAt: null },
+        { id: p3, name: 'CI/CD Pipeline Optimization', description: 'Reduce build times and improve deployment reliability', status: 'completed', priority: 2, tags: ['devops','infrastructure'], color: '#10b981', createdAt: iso(45), updatedAt: iso(5), completedAt: iso(5) },
+        { id: p4, name: 'Mobile Push Notifications', description: 'Add push notification support for mobile app users', status: 'on-hold', priority: 3, tags: ['mobile','backend'], color: '#d97706', createdAt: iso(14), updatedAt: iso(3), completedAt: null },
+    ];
+    print(`Created ${projects.length} projects`);
+
+    // --- Tasks ---
+    const t1=id(),t2=id(),t3=id(),t4=id(),t5=id(),t6=id(),t7=id(),t8=id(),t9=id(),t10=id(),t11=id(),t12=id(),t13=id(),t14=id(),t15=id(),t16=id();
+    const tasks = [
+        // API Gateway Migration tasks
+        { id: t1, name: 'Set up API gateway infrastructure', description: 'Provision AWS API Gateway and configure VPC links', projectId: p1, status: 'done', blockerNote: '', priority: 1, dueDate: dateStr(5), tags: ['aws'], completedAt: iso(6), createdAt: iso(20), updatedAt: iso(6), sortOrder: 1 },
+        { id: t2, name: 'Migrate /users endpoints', description: 'Move user CRUD endpoints to new gateway with request validation', projectId: p1, status: 'done', blockerNote: '', priority: 1, dueDate: dateStr(2), tags: ['api'], completedAt: iso(3), createdAt: iso(14), updatedAt: iso(3), sortOrder: 2 },
+        { id: t3, name: 'Migrate /orders endpoints', description: 'Move order processing endpoints including webhook handlers', projectId: p1, status: 'in-progress', blockerNote: '', priority: 1, dueDate: futureDate(3), tags: ['api'], completedAt: null, createdAt: iso(10), updatedAt: iso(1), sortOrder: 3 },
+        { id: t4, name: 'Add rate limiting rules', description: 'Configure per-client rate limits and throttling policies', projectId: p1, status: 'this-week', blockerNote: '', priority: 2, dueDate: futureDate(5), tags: ['security'], completedAt: null, createdAt: iso(7), updatedAt: iso(2), sortOrder: 4 },
+        { id: t5, name: 'Migrate /analytics endpoints', description: 'Move analytics data endpoints - may be deprecated', projectId: p1, status: 'rejected', blockerNote: 'Analytics moving to separate microservice', priority: 3, dueDate: null, tags: ['api'], completedAt: iso(4), createdAt: iso(12), updatedAt: iso(4), sortOrder: 5 },
+        { id: t6, name: 'Load test new gateway', description: 'Run k6 load tests against migrated endpoints', projectId: p1, status: 'backlog', blockerNote: '', priority: 2, dueDate: futureDate(10), tags: ['testing'], completedAt: null, createdAt: iso(7), updatedAt: iso(7), sortOrder: 6 },
+
+        // Customer Dashboard tasks
+        { id: t7, name: 'Design new widget layout', description: 'Create Figma mockups for the new dashboard grid', projectId: p2, status: 'done', blockerNote: '', priority: 1, dueDate: dateStr(7), tags: ['design'], completedAt: iso(8), createdAt: iso(18), updatedAt: iso(8), sortOrder: 1 },
+        { id: t8, name: 'Implement chart components', description: 'Build reusable Chart.js wrapper components for dashboard', projectId: p2, status: 'in-progress', blockerNote: '', priority: 1, dueDate: futureDate(2), tags: ['frontend'], completedAt: null, createdAt: iso(10), updatedAt: iso(1), sortOrder: 2 },
+        { id: t9, name: 'Build filter sidebar', description: 'Date range picker and dimension filters for dashboard data', projectId: p2, status: 'this-week', blockerNote: '', priority: 2, dueDate: futureDate(4), tags: ['frontend'], completedAt: null, createdAt: iso(8), updatedAt: iso(2), sortOrder: 3 },
+        { id: t10, name: 'User testing sessions', description: 'Schedule and run usability tests with 5 customers', projectId: p2, status: 'blocked', blockerNote: 'Waiting on customer success team to schedule participants', priority: 2, dueDate: futureDate(7), tags: ['ux'], completedAt: null, createdAt: iso(5), updatedAt: iso(2), sortOrder: 4 },
+
+        // CI/CD Pipeline tasks (all done)
+        { id: t11, name: 'Parallelize test suites', description: 'Split test matrix across 4 runners', projectId: p3, status: 'done', blockerNote: '', priority: 1, dueDate: dateStr(10), tags: ['ci'], completedAt: iso(8), createdAt: iso(25), updatedAt: iso(8), sortOrder: 1 },
+        { id: t12, name: 'Add Docker layer caching', description: 'Enable BuildKit cache mounts for faster image builds', projectId: p3, status: 'done', blockerNote: '', priority: 1, dueDate: dateStr(7), tags: ['docker'], completedAt: iso(6), createdAt: iso(20), updatedAt: iso(6), sortOrder: 2 },
+        { id: t13, name: 'Migrate to GitHub Actions', description: 'Replace Jenkins with GHA workflows', projectId: p3, status: 'rejected', blockerNote: 'Team decided to stay on Jenkins for now, revisit Q3', priority: 2, dueDate: null, tags: ['ci'], completedAt: iso(10), createdAt: iso(30), updatedAt: iso(10), sortOrder: 3 },
+
+        // Mobile Push tasks
+        { id: t14, name: 'Research notification providers', description: 'Compare Firebase Cloud Messaging vs OneSignal vs SNS', projectId: p4, status: 'done', blockerNote: '', priority: 1, dueDate: dateStr(8), tags: ['research'], completedAt: iso(9), createdAt: iso(14), updatedAt: iso(9), sortOrder: 1 },
+        { id: t15, name: 'Set up FCM integration', description: 'Configure Firebase Cloud Messaging for Android and iOS', projectId: p4, status: 'blocked', blockerNote: 'On hold pending product decision on notification strategy', priority: 1, dueDate: futureDate(14), tags: ['firebase'], completedAt: null, createdAt: iso(10), updatedAt: iso(3), sortOrder: 2 },
+        { id: t16, name: 'Build notification preferences UI', description: 'Settings page for users to manage notification types', projectId: p4, status: 'backlog', blockerNote: '', priority: 2, dueDate: null, tags: ['frontend'], completedAt: null, createdAt: iso(10), updatedAt: iso(10), sortOrder: 3 },
+    ];
+    print(`Created ${tasks.length} tasks (across all 6 statuses)`);
+
+    // --- Activities (linked to tasks and some unlinked) ---
+    const activities = [
+        // Activities for t1 (Set up API gateway)
+        { id: id(), entry: 'Provisioned API Gateway instance in us-east-1, configured VPC link to internal ALB', projectId: p1, taskId: t1, category: 'engineering', date: dateStr(12), tags: ['aws'], timestamp: iso(12,9), createdAt: iso(12,9) },
+        { id: id(), entry: 'Wrote Terraform modules for gateway resources and IAM policies', projectId: p1, taskId: t1, category: 'engineering', date: dateStr(10), tags: ['terraform'], timestamp: iso(10,14), createdAt: iso(10,14) },
+        { id: id(), entry: 'Tested gateway connectivity from staging environment - all green', projectId: p1, taskId: t1, category: 'engineering', date: dateStr(7), tags: ['testing'], timestamp: iso(7,11), createdAt: iso(7,11) },
+
+        // Activities for t2 (Migrate /users)
+        { id: id(), entry: 'Mapped all 12 /users endpoints to new gateway routes', projectId: p1, taskId: t2, category: 'engineering', date: dateStr(8), tags: ['api'], timestamp: iso(8,10), createdAt: iso(8,10) },
+        { id: id(), entry: 'Added request validation schemas for user create/update', projectId: p1, taskId: t2, category: 'engineering', date: dateStr(5), tags: ['api'], timestamp: iso(5,11), createdAt: iso(5,11) },
+        { id: id(), entry: 'Fixed CORS issue with preflight requests on /users/me', projectId: p1, taskId: t2, category: 'bugfix', date: dateStr(4), tags: ['cors'], timestamp: iso(4,15), createdAt: iso(4,15) },
+        { id: id(), entry: 'Deployed /users migration to production, monitoring for errors', projectId: p1, taskId: t2, category: 'engineering', date: dateStr(3), tags: [], timestamp: iso(3,16), createdAt: iso(3,16) },
+
+        // Activities for t3 (Migrate /orders - in progress)
+        { id: id(), entry: 'Started mapping /orders endpoints - 8 routes identified', projectId: p1, taskId: t3, category: 'engineering', date: dateStr(4), tags: ['api'], timestamp: iso(4,9), createdAt: iso(4,9) },
+        { id: id(), entry: 'Migrated /orders CRUD routes, webhook handler is more complex than expected', projectId: p1, taskId: t3, category: 'engineering', date: dateStr(2), tags: ['api'], timestamp: iso(2,14), createdAt: iso(2,14) },
+        { id: id(), entry: 'Discussed webhook retry strategy with team, decided on exponential backoff', projectId: p1, taskId: t3, category: 'meeting', date: dateStr(1), tags: [], timestamp: iso(1,10), createdAt: iso(1,10) },
+
+        // Activities for t5 (Rejected analytics migration)
+        { id: id(), entry: 'Started scoping /analytics endpoints, found 15 routes with complex aggregation', projectId: p1, taskId: t5, category: 'engineering', date: dateStr(8), tags: ['api'], timestamp: iso(8,13), createdAt: iso(8,13) },
+        { id: id(), entry: 'Met with data team - they want to own analytics as separate service. Recommending we reject this task.', projectId: p1, taskId: t5, category: 'meeting', date: dateStr(5), tags: [], timestamp: iso(5,14), createdAt: iso(5,14) },
+
+        // Activities for t7 (Dashboard design)
+        { id: id(), entry: 'Created initial wireframes for 3 layout options', projectId: p2, taskId: t7, category: 'design', date: dateStr(14), tags: ['figma'], timestamp: iso(14,10), createdAt: iso(14,10) },
+        { id: id(), entry: 'Design review with stakeholders - Option B selected with minor tweaks', projectId: p2, taskId: t7, category: 'meeting', date: dateStr(10), tags: [], timestamp: iso(10,11), createdAt: iso(10,11) },
+        { id: id(), entry: 'Finalized high-fidelity mockups and handed off to engineering', projectId: p2, taskId: t7, category: 'design', date: dateStr(8), tags: ['figma'], timestamp: iso(8,16), createdAt: iso(8,16) },
+
+        // Activities for t8 (Chart components - in progress)
+        { id: id(), entry: 'Built base ChartWrapper component with responsive resize handling', projectId: p2, taskId: t8, category: 'engineering', date: dateStr(5), tags: ['chartjs'], timestamp: iso(5,10), createdAt: iso(5,10) },
+        { id: id(), entry: 'Implemented line chart and bar chart variants with theme support', projectId: p2, taskId: t8, category: 'engineering', date: dateStr(3), tags: ['chartjs'], timestamp: iso(3,11), createdAt: iso(3,11) },
+        { id: id(), entry: 'Added tooltip customization and export-to-PNG feature', projectId: p2, taskId: t8, category: 'engineering', date: dateStr(1), tags: [], timestamp: iso(1,14), createdAt: iso(1,14) },
+
+        // Activities for t11 (Parallelize tests)
+        { id: id(), entry: 'Analyzed test suite distribution - found 70% of time in integration tests', projectId: p3, taskId: t11, category: 'engineering', date: dateStr(13), tags: ['ci'], timestamp: iso(13,9), createdAt: iso(13,9) },
+        { id: id(), entry: 'Split test matrix into 4 shards, build time dropped from 18min to 6min', projectId: p3, taskId: t11, category: 'engineering', date: dateStr(9), tags: ['ci'], timestamp: iso(9,15), createdAt: iso(9,15) },
+
+        // Activities for t12 (Docker caching)
+        { id: id(), entry: 'Enabled BuildKit with cache-from/cache-to for base images', projectId: p3, taskId: t12, category: 'engineering', date: dateStr(8), tags: ['docker'], timestamp: iso(8,9), createdAt: iso(8,9) },
+        { id: id(), entry: 'Docker build time reduced from 4min to 45sec with layer caching', projectId: p3, taskId: t12, category: 'engineering', date: dateStr(6), tags: ['docker'], timestamp: iso(6,11), createdAt: iso(6,11) },
+
+        // Activities for t14 (Research notifications)
+        { id: id(), entry: 'Compared FCM, OneSignal, and SNS on cost, features, and SDK quality', projectId: p4, taskId: t14, category: 'research', date: dateStr(12), tags: [], timestamp: iso(12,10), createdAt: iso(12,10) },
+        { id: id(), entry: 'Wrote comparison doc and recommendation (FCM). Shared with team.', projectId: p4, taskId: t14, category: 'documentation', date: dateStr(9), tags: [], timestamp: iso(9,14), createdAt: iso(9,14) },
+
+        // Unlinked activities (general work, meetings, etc.)
+        { id: id(), entry: 'Sprint planning - prioritized API gateway and dashboard work for this sprint', projectId: null, taskId: null, category: 'meeting', date: dateStr(13), tags: ['sprint'], timestamp: iso(13,10), createdAt: iso(13,10) },
+        { id: id(), entry: 'Code review for Sarah\'s PR on auth middleware refactor', projectId: null, taskId: null, category: 'review', date: dateStr(7), tags: [], timestamp: iso(7,14), createdAt: iso(7,14) },
+        { id: id(), entry: 'Sprint retrospective - discussed improving PR review turnaround', projectId: null, taskId: null, category: 'meeting', date: dateStr(6), tags: ['sprint'], timestamp: iso(6,16), createdAt: iso(6,16) },
+        { id: id(), entry: 'Helped onboard new team member - walked through service architecture', projectId: null, taskId: null, category: 'meeting', date: dateStr(3), tags: ['onboarding'], timestamp: iso(3,10), createdAt: iso(3,10) },
+        { id: id(), entry: 'Updated team wiki with API gateway migration runbook', projectId: p1, taskId: null, category: 'documentation', date: dateStr(2), tags: ['docs'], timestamp: iso(2,15), createdAt: iso(2,15) },
+        { id: id(), entry: 'Investigated production alert on memory spike - traced to log aggregator', projectId: null, taskId: null, category: 'bugfix', date: dateStr(1), tags: ['incident'], timestamp: iso(1,8), createdAt: iso(1,8) },
+        { id: id(), entry: '1:1 with manager - discussed career growth and upcoming projects', projectId: null, taskId: null, category: 'meeting', date: dateStr(0), tags: [], timestamp: iso(0,11), createdAt: iso(0,11) },
+    ];
+    print(`Created ${activities.length} activities (${activities.filter(a=>a.taskId).length} linked to tasks, ${activities.filter(a=>!a.taskId).length} general)`);
+
+    // --- Metrics ---
+    const metrics = [
+        { id: id(), projectId: p1, description: 'API Gateway reduces p99 latency and enables per-client rate limiting', frequency: 'daily', usersAffected: 50, timePerOccurrence: 2, investmentHours: 60, createdAt: iso(20) },
+        { id: id(), projectId: p3, description: 'CI/CD optimization saves developer wait time on every push', frequency: 'daily', usersAffected: 12, timePerOccurrence: 12, investmentHours: 30, createdAt: iso(15) },
+    ];
+    print(`Created ${metrics.length} metrics`);
+
+    // --- Weekly Snapshots ---
+    const snapshots = [
+        {
+            id: id(),
+            weekOf: dateStr(7),
+            completedTasks: [t1, t7, t11, t12, t14].map(tid => tasks.find(t=>t.id===tid)?.name).filter(Boolean),
+            rejected: [t13].map(tid => tasks.find(t=>t.id===tid)?.name).filter(Boolean),
+            activitiesCount: 12,
+            karmaGained: 18,
+            createdAt: iso(7),
+        },
+        {
+            id: id(),
+            weekOf: dateStr(0),
+            completedTasks: [t2].map(tid => tasks.find(t=>t.id===tid)?.name).filter(Boolean),
+            rejected: [t5].map(tid => tasks.find(t=>t.id===tid)?.name).filter(Boolean),
+            activitiesCount: 15,
+            karmaGained: 12,
+            createdAt: iso(0),
+        },
+    ];
+    print(`Created ${snapshots.length} weekly snapshots`);
+
+    // --- Settings ---
+    const settings = {
+        theme: 'dark',
+        userName: 'Daniel',
+        jobTitle: 'Senior Software Engineer',
+        bossName: 'Alex Chen',
+        onboardingComplete: true,
+        defaultView: 'dashboard'
+    };
+
+    // --- Assemble and save ---
+    const data = {
+        projects,
+        tasks,
+        activities,
+        metrics,
+        weeklySnapshots: snapshots,
+        settings,
+        karma: 42,
+        streak: { current: 5, lastDate: dateStr(0), best: 8 }
+    };
+
+    localStorage.setItem('workpulse-data', JSON.stringify(data));
+    print('\n--- SAVED to localStorage ---');
+    print(`Key: workpulse-data`);
+    print(`Size: ${(JSON.stringify(data).length / 1024).toFixed(1)} KB`);
+    print(`\nProjects: ${projects.length} (active: 2, completed: 1, on-hold: 1)`);
+    print(`Tasks: ${tasks.length} (done: 5, in-progress: 2, this-week: 2, blocked: 2, backlog: 2, rejected: 2, across 1 rejected)`);
+    print(`Activities: ${activities.length}`);
+    print(`Karma: 42, Streak: 5 days`);
+    print(`\nNow open index.html to see your test data!`);
+};
+
+document.getElementById('clear').onclick = function() {
+    localStorage.removeItem('workpulse-data');
+    document.getElementById('log').textContent = 'Cleared workpulse-data from localStorage.\nOpen index.html to start fresh.';
+};
+</script>
+</body>
+</html>

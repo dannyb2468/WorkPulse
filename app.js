@@ -49,6 +49,7 @@ class WorkPulseApp {
         this.setupSnapshots();
         this.setupCommandPalette();
         this.setupKeyboardShortcuts();
+        this.setupStatusPicker();
         this.setupAuth();
         this.handleHashNavigation();
         this.renderStreakWidget();
@@ -819,11 +820,15 @@ class WorkPulseApp {
 
         // Event delegation for project cards
         document.getElementById('projects-content')?.addEventListener('click', (e) => {
+            const statusBadge = e.target.closest('.status-badge-clickable[data-project-id]');
             const card = e.target.closest('.project-card');
             const editBtn = e.target.closest('.project-edit-btn');
             const deleteBtn = e.target.closest('.project-delete-btn');
 
-            if (deleteBtn) {
+            if (statusBadge) {
+                e.stopPropagation();
+                this.showStatusPicker(statusBadge.dataset.projectId, statusBadge, 'project');
+            } else if (deleteBtn) {
                 e.stopPropagation();
                 const id = deleteBtn.dataset.id;
                 this.deleteProject(id);
@@ -1005,7 +1010,7 @@ class WorkPulseApp {
 
         container.innerHTML = projects.map(p => {
             const taskCount = this.data.tasks.filter(t => t.projectId === p.id).length;
-            const doneTasks = this.data.tasks.filter(t => t.projectId === p.id && t.status === 'done').length;
+            const doneTasks = this.data.tasks.filter(t => t.projectId === p.id && (t.status === 'done' || t.status === 'rejected')).length;
             const priorityDots = Array.from({ length: 5 }, (_, i) =>
                 `<span class="priority-dot ${i < p.priority ? 'filled' : ''}"></span>`
             ).join('');
@@ -1024,7 +1029,7 @@ class WorkPulseApp {
                 </div>
                 ${p.description ? `<p class="project-card-desc">${this.escapeHtml(p.description)}</p>` : ''}
                 <div class="project-card-meta">
-                    <span class="badge ${statusClasses[p.status] || 'badge-muted'}">${statusLabels[p.status] || p.status}</span>
+                    <span class="badge ${statusClasses[p.status] || 'badge-muted'} status-badge-clickable" data-project-id="${this.escapeHtml(p.id)}" title="Change project status">${statusLabels[p.status] || p.status}</span>
                     <span class="priority-dots">${priorityDots}</span>
                     ${taskCount ? `<span class="tag"><i class="fas fa-tasks"></i> ${doneTasks}/${taskCount}</span>` : ''}
                     ${(p.tags || []).map(t => `<span class="tag">${this.escapeHtml(t)}</span>`).join('')}
@@ -1047,13 +1052,33 @@ class WorkPulseApp {
             if (group) group.style.display = statusSelect.value === 'blocked' ? 'block' : 'none';
         });
 
+        // Log Activity from task modal
+        const logBtn = document.getElementById('task-log-activity-btn');
+        if (logBtn) logBtn.addEventListener('click', () => {
+            const taskId = document.getElementById('task-id').value;
+            const projectId = document.getElementById('task-project').value;
+            if (!taskId) return;
+            this.closeModal('task-modal');
+            this.openActivityModalForTask(taskId, projectId);
+        });
+
         // Project detail event delegation
         document.getElementById('project-detail-body')?.addEventListener('click', (e) => {
+            const projectBadge = e.target.closest('.status-badge-clickable[data-project-id]');
+            const statusDot = e.target.closest('.status-badge-clickable[data-task-id]');
             const editBtn = e.target.closest('.task-edit-btn');
             const deleteBtn = e.target.closest('.task-delete-btn');
             const addTaskBtn = e.target.closest('#project-detail-add-task');
 
-            if (deleteBtn) {
+            if (projectBadge) {
+                e.stopPropagation();
+                this.showStatusPicker(projectBadge.dataset.projectId, projectBadge, 'project');
+                return;
+            } else if (statusDot) {
+                e.stopPropagation();
+                this.showStatusPicker(statusDot.dataset.taskId, statusDot);
+                return;
+            } else if (deleteBtn) {
                 const id = deleteBtn.dataset.id;
                 this.deleteTask(id);
             } else if (editBtn) {
@@ -1086,6 +1111,9 @@ class WorkPulseApp {
                 `<option value="${this.escapeHtml(p.id)}">${this.escapeHtml(p.name)}</option>`
             ).join('');
 
+        const activitiesSection = document.getElementById('task-activities-section');
+        const activitiesList = document.getElementById('task-activities-list');
+
         if (task) {
             title.textContent = 'Edit Task';
             idField.value = task.id;
@@ -1098,6 +1126,12 @@ class WorkPulseApp {
             priorityField.value = task.priority || '3';
             dueDateField.value = task.dueDate || '';
             tagsField.value = (task.tags || []).join(', ');
+
+            // Show linked activities
+            if (activitiesSection) {
+                activitiesSection.style.display = 'block';
+                this.renderTaskActivities(task.id, activitiesList);
+            }
         } else {
             title.textContent = 'New Task';
             idField.value = '';
@@ -1110,6 +1144,8 @@ class WorkPulseApp {
             priorityField.value = '3';
             dueDateField.value = '';
             tagsField.value = '';
+
+            if (activitiesSection) activitiesSection.style.display = 'none';
         }
 
         this.openModal('task-modal');
@@ -1179,6 +1215,43 @@ class WorkPulseApp {
         if (task) this.openTaskModal(task);
     }
 
+    renderTaskActivities(taskId, container) {
+        if (!container) return;
+        const activities = this.data.activities
+            .filter(a => a.taskId === taskId)
+            .sort((a, b) => (b.timestamp || b.createdAt || '').localeCompare(a.timestamp || a.createdAt || ''));
+
+        if (activities.length === 0) {
+            container.innerHTML = '<div class="task-activities-empty">No activities logged for this task yet.</div>';
+            return;
+        }
+
+        container.innerHTML = activities.map(a => {
+            return `<div class="task-activity-item">
+                <span class="category-badge ${a.category || 'other'}">${this.escapeHtml(a.category || 'other')}</span>
+                <span class="task-activity-entry">${this.escapeHtml(a.entry)}</span>
+                <span class="task-activity-date">${this.formatDateShort(a.date)}</span>
+            </div>`;
+        }).join('');
+    }
+
+    openActivityModalForTask(taskId, projectId) {
+        this.openActivityModal();
+        // Pre-fill the project and task
+        const projectField = document.getElementById('activity-project-select');
+        const taskField = document.getElementById('activity-task-select');
+        if (projectField && projectId) {
+            projectField.value = projectId;
+            // Populate task dropdown for this project
+            const tasks = this.data.tasks.filter(t => t.projectId === projectId);
+            if (taskField) {
+                taskField.innerHTML = '<option value="">No task</option>' +
+                    tasks.map(t => `<option value="${this.escapeHtml(t.id)}">${this.escapeHtml(t.name)}</option>`).join('');
+                taskField.value = taskId;
+            }
+        }
+    }
+
     deleteTask(id) {
         const task = this.data.tasks.find(t => t.id === id);
         if (!task) return;
@@ -1194,14 +1267,20 @@ class WorkPulseApp {
         const task = this.data.tasks.find(t => t.id === taskId);
         if (!task) return;
         const wasDone = task.status === 'done';
+        const wasTerminal = task.status === 'done' || task.status === 'rejected';
+        const isTerminal = newStatus === 'done' || newStatus === 'rejected';
         const now = new Date().toISOString();
         task.status = newStatus;
-        task.completedAt = newStatus === 'done' ? now : (newStatus !== 'done' ? null : task.completedAt);
+        task.completedAt = isTerminal ? now : null;
         task.updatedAt = now;
         if (newStatus === 'done' && !wasDone) {
             this.updateStreak();
             const earlyBonus = task.dueDate && task.completedAt && task.completedAt.slice(0, 10) <= task.dueDate ? 5 : 0;
             this.addKarma(3 + earlyBonus);
+        }
+        if (newStatus === 'rejected' && !wasTerminal) {
+            this.updateStreak();
+            this.addKarma(1);
         }
         this.saveData();
     }
@@ -1215,9 +1294,14 @@ class WorkPulseApp {
         if (title) title.textContent = project.name;
 
         const tasks = this.data.tasks.filter(t => t.projectId === id);
-        const statusLabels = { backlog: 'Backlog', 'this-week': 'This Week', 'in-progress': 'In Progress', blocked: 'Blocked', done: 'Done' };
+        const statusLabels = { backlog: 'Backlog', 'this-week': 'This Week', 'in-progress': 'In Progress', blocked: 'Blocked', done: 'Done', rejected: 'Rejected' };
+        const projectStatusLabels = { active: 'Active', 'on-hold': 'On Hold', completed: 'Completed', archived: 'Archived' };
+        const projectStatusClasses = { active: 'badge-primary', 'on-hold': 'badge-warning', completed: 'badge-success', archived: 'badge-muted' };
 
-        let html = `<p style="color:var(--text-secondary);margin-bottom:16px;">${this.escapeHtml(project.description || 'No description')}</p>`;
+        let html = `<div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
+            <span class="badge ${projectStatusClasses[project.status] || 'badge-muted'} status-badge-clickable" data-project-id="${this.escapeHtml(id)}" title="Change project status">${projectStatusLabels[project.status] || project.status}</span>
+            <p style="color:var(--text-secondary);flex:1;margin:0;">${this.escapeHtml(project.description || 'No description')}</p>
+        </div>`;
         html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
             <h4 style="font-weight:700;">Tasks (${tasks.length})</h4>
             <button class="btn btn-primary btn-sm" id="project-detail-add-task" data-project-id="${this.escapeHtml(id)}">
@@ -1233,7 +1317,7 @@ class WorkPulseApp {
                 const urgency = this.getDueUrgency(t.dueDate);
                 const dueLabel = t.dueDate ? this.formatDateShort(t.dueDate) : '';
                 html += `<div class="task-list-item">
-                    <span class="status-dot ${t.status}"></span>
+                    <span class="status-dot ${t.status} status-badge-clickable" data-task-id="${this.escapeHtml(t.id)}" title="Change status"></span>
                     <div class="task-list-info">
                         <div class="task-list-name">${this.escapeHtml(t.name)}</div>
                         <div class="task-list-meta">
@@ -1302,7 +1386,8 @@ class WorkPulseApp {
             { key: 'this-week', label: 'This Week' },
             { key: 'in-progress', label: 'In Progress' },
             { key: 'blocked', label: 'Blocked' },
-            { key: 'done', label: 'Done' }
+            { key: 'done', label: 'Done' },
+            { key: 'rejected', label: 'Rejected' }
         ];
 
         const isTouchDevice = 'ontouchstart' in window;
@@ -1322,7 +1407,7 @@ class WorkPulseApp {
                         const urgency = this.getDueUrgency(t.dueDate);
                         return `<div class="kanban-card" draggable="true" data-task-id="${this.escapeHtml(t.id)}"
                             style="border-left-color:${this.escapeHtml(project?.color || '#0d9488')}">
-                            <div class="kanban-card-title">${this.escapeHtml(t.name)}</div>
+                            <div class="kanban-card-title"><span class="status-dot ${t.status} status-badge-clickable" data-task-id="${this.escapeHtml(t.id)}" title="Change status"></span> ${this.escapeHtml(t.name)}</div>
                             <div class="kanban-card-meta">
                                 ${project ? `<span class="kanban-card-project">${this.escapeHtml(project.name)}</span>` : ''}
                                 ${t.dueDate ? `<span class="task-due-date ${urgency}">${this.formatDateShort(t.dueDate)}</span>` : ''}
@@ -1421,10 +1506,18 @@ class WorkPulseApp {
     }
 
     setupKanbanCardClicks() {
+        // Status dot click opens picker
+        document.querySelectorAll('.kanban-card .status-badge-clickable').forEach(dot => {
+            dot.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.showStatusPicker(dot.dataset.taskId, dot);
+            });
+        });
+
         // Click to edit
         document.querySelectorAll('.kanban-card').forEach(card => {
             card.addEventListener('click', (e) => {
-                if (e.target.closest('select')) return;
+                if (e.target.closest('select') || e.target.closest('.status-badge-clickable')) return;
                 const taskId = card.dataset.taskId;
                 this.editTask(taskId);
             });
@@ -2073,6 +2166,13 @@ class WorkPulseApp {
         );
     }
 
+    getRejectedInRange(from, to) {
+        return this.data.tasks.filter(t =>
+            t.status === 'rejected' && t.completedAt &&
+            t.completedAt >= from && t.completedAt <= to + 'T23:59:59'
+        );
+    }
+
     getInProgressItems() {
         return this.data.tasks.filter(t => t.status === 'in-progress' || t.status === 'this-week');
     }
@@ -2091,6 +2191,247 @@ class WorkPulseApp {
         return this.data.activities.filter(a =>
             a.date >= from && a.date <= to
         ).sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || ''));
+    }
+
+    generateWorkLogHTML(from, to, includeMetrics) {
+        const activities = this.getActivitiesInRange(from, to);
+        const tasks = this.data.tasks.filter(t => {
+            const hasActivity = activities.some(a => a.taskId === t.id);
+            const touched = (t.updatedAt && t.updatedAt >= from && t.updatedAt <= to + 'T23:59:59') ||
+                (t.completedAt && t.completedAt >= from && t.completedAt <= to + 'T23:59:59') ||
+                (t.createdAt && t.createdAt >= from && t.createdAt <= to + 'T23:59:59');
+            return hasActivity || touched;
+        });
+
+        // Build project map from tasks AND project-linked activities
+        const projectMap = {};
+        tasks.forEach(t => {
+            const pid = t.projectId || '_none';
+            if (!projectMap[pid]) projectMap[pid] = { tasks: [], activities: [] };
+            projectMap[pid].tasks.push(t);
+        });
+        // Add project-linked activities (even those without a task)
+        activities.forEach(a => {
+            const pid = a.projectId || (a.taskId ? null : '_none');
+            if (!pid) return; // linked to task, handled below
+            if (a.taskId) return; // will show under its task
+            if (!projectMap[pid]) projectMap[pid] = { tasks: [], activities: [] };
+            projectMap[pid].activities.push(a);
+        });
+        // Truly unlinked activities (no project, no task)
+        const unlinkedActivities = activities.filter(a => !a.taskId && !a.projectId);
+
+        const metricsByProject = {};
+        if (includeMetrics) {
+            this.getMetricsSummary().forEach(m => { metricsByProject[m.projectId] = m; });
+        }
+
+        if (Object.keys(projectMap).length === 0 && unlinkedActivities.length === 0) {
+            return '<div class="report-section"><p style="color:var(--text-muted);font-size:0.875rem;">No work logged in this period.</p></div>';
+        }
+
+        const statusLabels = { backlog: 'Backlog', 'this-week': 'This Week', 'in-progress': 'In Progress', blocked: 'Blocked', done: 'Done', rejected: 'Rejected' };
+        const statusIcons = { done: 'fa-check-circle', rejected: 'fa-times-circle', 'in-progress': 'fa-arrow-circle-right', blocked: 'fa-exclamation-circle', 'this-week': 'fa-calendar-check', backlog: 'fa-circle' };
+        const statusColors = { backlog: 'var(--text-muted)', 'this-week': 'var(--info)', 'in-progress': 'var(--primary)', blocked: 'var(--danger)', done: 'var(--success)', rejected: '#78716c' };
+        // Render order: active work first (in-progress, this-week), then done, then blocked, then rejected, then backlog
+        const statusOrder = { 'in-progress': 0, 'this-week': 1, blocked: 2, done: 3, rejected: 4, backlog: 5 };
+
+        let html = '';
+
+        const projectIds = Object.keys(projectMap).sort((a, b) => {
+            if (a === '_none') return 1;
+            if (b === '_none') return -1;
+            const pa = this.getProject(a);
+            const pb = this.getProject(b);
+            return (pa?.name || '').localeCompare(pb?.name || '');
+        });
+
+        for (const pid of projectIds) {
+            const project = pid === '_none' ? null : this.getProject(pid);
+            const projectName = project ? project.name : 'Unassigned';
+            const projectStatus = project ? (project.status || 'active') : '';
+            const { tasks: projectTasks, activities: projectActivities } = projectMap[pid];
+            const metric = metricsByProject[pid];
+
+            // Sort tasks: active work first
+            projectTasks.sort((a, b) => (statusOrder[a.status] ?? 9) - (statusOrder[b.status] ?? 9));
+
+            // Project header
+            html += `<div class="worklog-project">`;
+            html += `<div class="worklog-project-header">
+                <i class="fas fa-folder" style="color:${project?.color || 'var(--primary)'};font-size:1.1rem;"></i>
+                <span style="font-size:1.05rem;">${this.escapeHtml(projectName)}</span>
+                ${projectStatus ? `<span class="badge badge-muted" style="font-size:0.7rem;">${this.escapeHtml(projectStatus)}</span>` : ''}
+            </div>`;
+
+            // Per-project metrics inline (if available)
+            if (metric) {
+                html += `<div style="display:flex;gap:16px;font-size:0.8rem;color:var(--text-secondary);margin-bottom:8px;padding:6px 12px;background:var(--bg-tertiary);border-radius:6px;">
+                    <span><i class="fas fa-chart-line" style="color:var(--accent);"></i> ${metric.weekSaved.toFixed(1)}h/week saved</span>
+                    <span><i class="fas fa-users" style="color:var(--info);"></i> ${metric.usersAffected || 0} people impacted</span>
+                    <span><i class="fas fa-percentage" style="color:var(--success);"></i> ${(metric.roi * 100).toFixed(0)}% ROI</span>
+                </div>`;
+            }
+
+            // Tasks grouped by status category, rendered inline
+            projectTasks.forEach(t => {
+                const taskActivities = activities.filter(a => a.taskId === t.id)
+                    .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+                const icon = statusIcons[t.status] || 'fa-circle';
+                const color = statusColors[t.status] || 'var(--text-muted)';
+
+                html += `<div class="worklog-task" style="border-left-color:${color};">`;
+                html += `<div class="worklog-task-header">
+                    <i class="fas ${icon}" style="color:${color};font-size:0.8rem;flex-shrink:0;"></i>
+                    <span style="flex:1;">${this.escapeHtml(t.name)}</span>
+                    <span style="color:${color};font-size:0.75rem;font-weight:600;flex-shrink:0;">${statusLabels[t.status] || t.status}</span>
+                </div>`;
+
+                if (t.status === 'blocked' && t.blockerNote) {
+                    html += `<div style="margin:2px 0 4px 22px;font-size:0.8rem;color:var(--danger);"><i class="fas fa-exclamation-triangle" style="font-size:0.7rem;margin-right:4px;"></i>${this.escapeHtml(t.blockerNote)}</div>`;
+                }
+                if (t.status === 'rejected' && t.blockerNote) {
+                    html += `<div style="margin:2px 0 4px 22px;font-size:0.8rem;color:#78716c;font-style:italic;"><i class="fas fa-info-circle" style="font-size:0.7rem;margin-right:4px;"></i>${this.escapeHtml(t.blockerNote)}</div>`;
+                }
+
+                if (taskActivities.length > 0) {
+                    taskActivities.forEach(a => {
+                        html += `<div class="worklog-activity">
+                            <span class="worklog-activity-date">${this.formatDateShort(a.date)}</span>
+                            <span class="category-badge ${a.category || 'other'}" style="font-size:0.7rem;">${this.escapeHtml(a.category || 'other')}</span>
+                            <span>${this.escapeHtml(a.entry)}</span>
+                        </div>`;
+                    });
+                }
+                html += '</div>';
+            });
+
+            // Project-level activities (linked to project but not a specific task)
+            if (projectActivities.length > 0) {
+                projectActivities.forEach(a => {
+                    html += `<div class="worklog-activity" style="margin-left:18px;">
+                        <span class="worklog-activity-date">${this.formatDateShort(a.date)}</span>
+                        <span class="category-badge ${a.category || 'other'}" style="font-size:0.7rem;">${this.escapeHtml(a.category || 'other')}</span>
+                        <span>${this.escapeHtml(a.entry)}</span>
+                    </div>`;
+                });
+            }
+
+            html += '</div>';
+        }
+
+        // Unlinked activities (no project, no task)
+        if (unlinkedActivities.length > 0) {
+            html += `<div class="worklog-project">`;
+            html += `<div class="worklog-project-header">
+                <i class="fas fa-clipboard-list" style="color:var(--text-muted);font-size:1.1rem;"></i>
+                <span style="font-size:1.05rem;">Other Work</span>
+            </div>`;
+            unlinkedActivities.forEach(a => {
+                html += `<div class="worklog-activity" style="margin-left:18px;">
+                    <span class="worklog-activity-date">${this.formatDateShort(a.date)}</span>
+                    <span class="category-badge ${a.category || 'other'}" style="font-size:0.7rem;">${this.escapeHtml(a.category || 'other')}</span>
+                    <span>${this.escapeHtml(a.entry)}</span>
+                </div>`;
+            });
+            html += '</div>';
+        }
+
+        return html;
+    }
+
+    generateWorkLogMarkdown(from, to) {
+        const activities = this.getActivitiesInRange(from, to);
+        const tasks = this.data.tasks.filter(t => {
+            const hasActivity = activities.some(a => a.taskId === t.id);
+            const touched = (t.updatedAt && t.updatedAt >= from && t.updatedAt <= to + 'T23:59:59') ||
+                (t.completedAt && t.completedAt >= from && t.completedAt <= to + 'T23:59:59') ||
+                (t.createdAt && t.createdAt >= from && t.createdAt <= to + 'T23:59:59');
+            return hasActivity || touched;
+        });
+
+        const projectMap = {};
+        tasks.forEach(t => {
+            const pid = t.projectId || '_none';
+            if (!projectMap[pid]) projectMap[pid] = { tasks: [], activities: [] };
+            projectMap[pid].tasks.push(t);
+        });
+        activities.forEach(a => {
+            if (a.taskId || !a.projectId) return;
+            const pid = a.projectId;
+            if (!projectMap[pid]) projectMap[pid] = { tasks: [], activities: [] };
+            projectMap[pid].activities.push(a);
+        });
+        const unlinkedActivities = activities.filter(a => !a.taskId && !a.projectId);
+
+        if (Object.keys(projectMap).length === 0 && unlinkedActivities.length === 0) {
+            return '_No work logged in this period._\n\n';
+        }
+
+        const statusLabels = { backlog: 'Backlog', 'this-week': 'This Week', 'in-progress': 'In Progress', blocked: 'Blocked', done: 'Done', rejected: 'Rejected' };
+        const statusOrder = { 'in-progress': 0, 'this-week': 1, blocked: 2, done: 3, rejected: 4, backlog: 5 };
+
+        const metricsByProject = {};
+        this.getMetricsSummary().forEach(m => { metricsByProject[m.projectId] = m; });
+
+        let md = '';
+
+        const projectIds = Object.keys(projectMap).sort((a, b) => {
+            if (a === '_none') return 1;
+            if (b === '_none') return -1;
+            const pa = this.getProject(a);
+            const pb = this.getProject(b);
+            return (pa?.name || '').localeCompare(pb?.name || '');
+        });
+
+        for (const pid of projectIds) {
+            const project = pid === '_none' ? null : this.getProject(pid);
+            const projectName = project ? project.name : 'Unassigned';
+            const projectStatus = project ? (project.status || 'active') : '';
+            const { tasks: projectTasks, activities: projectActivities } = projectMap[pid];
+            const metric = metricsByProject[pid];
+
+            projectTasks.sort((a, b) => (statusOrder[a.status] ?? 9) - (statusOrder[b.status] ?? 9));
+
+            md += `## ${projectName}${projectStatus ? ` [${projectStatus}]` : ''}\n`;
+            if (metric) {
+                md += `> ${metric.weekSaved.toFixed(1)}h/week saved · ${metric.usersAffected || 0} people impacted · ${(metric.roi * 100).toFixed(0)}% ROI\n`;
+            }
+            md += '\n';
+
+            projectTasks.forEach(t => {
+                const statusTag = statusLabels[t.status] || t.status;
+                md += `### ${t.name} [${statusTag}]\n`;
+                if ((t.status === 'blocked' || t.status === 'rejected') && t.blockerNote) {
+                    md += `> ${t.blockerNote}\n`;
+                }
+                const taskActivities = activities.filter(a => a.taskId === t.id)
+                    .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+                if (taskActivities.length > 0) {
+                    taskActivities.forEach(a => {
+                        md += `- **${this.formatDateShort(a.date)}** [${a.category || 'other'}] ${a.entry}\n`;
+                    });
+                }
+                md += '\n';
+            });
+
+            if (projectActivities.length > 0) {
+                projectActivities.forEach(a => {
+                    md += `- **${this.formatDateShort(a.date)}** [${a.category || 'other'}] ${a.entry}\n`;
+                });
+                md += '\n';
+            }
+        }
+
+        if (unlinkedActivities.length > 0) {
+            md += '## Other Work\n\n';
+            unlinkedActivities.forEach(a => {
+                md += `- **${this.formatDateShort(a.date)}** [${a.category || 'other'}] ${a.entry}\n`;
+            });
+            md += '\n';
+        }
+
+        return md;
     }
 
     getMetricsSummary() {
@@ -2121,6 +2462,7 @@ class WorkPulseApp {
         const showBlockers = document.getElementById('report-show-blockers').checked;
         const showActivities = document.getElementById('report-show-activities').checked;
         const showMetrics = document.getElementById('report-show-metrics').checked;
+        const showWorkLog = document.getElementById('report-show-worklog').checked;
 
         const previewArea = document.getElementById('report-preview-area');
         const printBtn = document.getElementById('print-report-btn');
@@ -2137,108 +2479,127 @@ class WorkPulseApp {
             <p style="color:var(--text-muted);font-size:0.8125rem;">${this.formatDate(from)} &ndash; ${this.formatDate(to)}</p>
         </div>`;
 
-        // Completed
-        if (showCompleted) {
-            const completed = this.getCompletedInRange(from, to);
-            html += '<div class="report-section">';
-            html += '<div class="report-section-title"><i class="fas fa-check-circle" style="color:var(--success);"></i> Completed</div>';
-            if (completed.length === 0) {
-                html += '<p style="color:var(--text-muted);font-size:0.875rem;">No tasks completed in this period.</p>';
-            } else {
-                const byProject = {};
-                completed.forEach(t => {
-                    const pName = this.getProject(t.projectId)?.name || 'No Project';
-                    if (!byProject[pName]) byProject[pName] = [];
-                    byProject[pName].push(t);
-                });
-                for (const [pName, tasks] of Object.entries(byProject)) {
-                    html += `<p style="font-weight:600;margin:8px 0 4px;font-size:0.875rem;">${this.escapeHtml(pName)}</p>`;
-                    tasks.forEach(t => {
-                        html += `<div class="report-item"><i class="fas fa-check" style="color:var(--success);margin-top:2px;"></i> ${this.escapeHtml(t.name)}</div>`;
+        // Work Log mode: project-grouped report replaces all individual sections
+        if (showWorkLog) {
+            html += this.generateWorkLogHTML(from, to, showMetrics);
+        } else {
+            // Legacy section-based layout
+            if (showCompleted) {
+                const completed = this.getCompletedInRange(from, to);
+                html += '<div class="report-section">';
+                html += '<div class="report-section-title"><i class="fas fa-check-circle" style="color:var(--success);"></i> Completed</div>';
+                if (completed.length === 0) {
+                    html += '<p style="color:var(--text-muted);font-size:0.875rem;">No tasks completed in this period.</p>';
+                } else {
+                    const byProject = {};
+                    completed.forEach(t => {
+                        const pName = this.getProject(t.projectId)?.name || 'No Project';
+                        if (!byProject[pName]) byProject[pName] = [];
+                        byProject[pName].push(t);
                     });
+                    for (const [pName, tasks] of Object.entries(byProject)) {
+                        html += `<p style="font-weight:600;margin:8px 0 4px;font-size:0.875rem;">${this.escapeHtml(pName)}</p>`;
+                        tasks.forEach(t => {
+                            html += `<div class="report-item"><i class="fas fa-check" style="color:var(--success);margin-top:2px;"></i> ${this.escapeHtml(t.name)}</div>`;
+                        });
+                    }
+                }
+                html += '</div>';
+
+                const rejected = this.getRejectedInRange(from, to);
+                if (rejected.length > 0) {
+                    html += '<div class="report-section">';
+                    html += '<div class="report-section-title"><i class="fas fa-directions" style="color:#78716c;"></i> Rejected / Pivoted</div>';
+                    const byProject = {};
+                    rejected.forEach(t => {
+                        const pName = this.getProject(t.projectId)?.name || 'No Project';
+                        if (!byProject[pName]) byProject[pName] = [];
+                        byProject[pName].push(t);
+                    });
+                    for (const [pName, tasks] of Object.entries(byProject)) {
+                        html += `<p style="font-weight:600;margin:8px 0 4px;font-size:0.875rem;">${this.escapeHtml(pName)}</p>`;
+                        tasks.forEach(t => {
+                            html += `<div class="report-item"><i class="fas fa-times" style="color:#78716c;margin-top:2px;"></i> ${this.escapeHtml(t.name)}</div>`;
+                        });
+                    }
+                    html += '</div>';
                 }
             }
-            html += '</div>';
-        }
 
-        // In Progress
-        if (showProgress) {
-            const inProgress = this.getInProgressItems();
-            html += '<div class="report-section">';
-            html += '<div class="report-section-title"><i class="fas fa-spinner" style="color:var(--primary);"></i> In Progress</div>';
-            if (inProgress.length === 0) {
-                html += '<p style="color:var(--text-muted);font-size:0.875rem;">No tasks currently in progress.</p>';
-            } else {
-                inProgress.forEach(t => {
-                    const project = this.getProject(t.projectId);
-                    html += `<div class="report-item"><i class="fas fa-arrow-right" style="color:var(--primary);margin-top:2px;"></i>
-                        <span>${this.escapeHtml(t.name)} ${project ? `<span class="tag">${this.escapeHtml(project.name)}</span>` : ''}</span></div>`;
-                });
-            }
-            html += '</div>';
-        }
-
-        // Coming Up
-        if (showUpcoming) {
-            const upcoming = this.getUpcomingItems();
-            if (upcoming.length > 0) {
+            if (showProgress) {
+                const inProgress = this.getInProgressItems();
                 html += '<div class="report-section">';
-                html += '<div class="report-section-title"><i class="fas fa-calendar" style="color:var(--info);"></i> Coming Up</div>';
-                upcoming.forEach(t => {
-                    html += `<div class="report-item"><i class="fas fa-circle" style="color:var(--info);font-size:0.5rem;margin-top:6px;"></i>
-                        <span>${this.escapeHtml(t.name)} <span style="color:var(--text-muted);font-size:0.75rem;">(due ${this.formatDateShort(t.dueDate)})</span></span></div>`;
-                });
+                html += '<div class="report-section-title"><i class="fas fa-spinner" style="color:var(--primary);"></i> In Progress</div>';
+                if (inProgress.length === 0) {
+                    html += '<p style="color:var(--text-muted);font-size:0.875rem;">No tasks currently in progress.</p>';
+                } else {
+                    inProgress.forEach(t => {
+                        const project = this.getProject(t.projectId);
+                        html += `<div class="report-item"><i class="fas fa-arrow-right" style="color:var(--primary);margin-top:2px;"></i>
+                            <span>${this.escapeHtml(t.name)} ${project ? `<span class="tag">${this.escapeHtml(project.name)}</span>` : ''}</span></div>`;
+                    });
+                }
                 html += '</div>';
             }
-        }
 
-        // Blockers
-        if (showBlockers) {
-            const blockers = this.getBlockers();
-            if (blockers.length > 0) {
-                html += '<div class="report-section">';
-                html += '<div class="report-section-title"><i class="fas fa-exclamation-triangle" style="color:var(--danger);"></i> Blockers</div>';
-                blockers.forEach(t => {
-                    html += `<div class="report-blocker"><strong>${this.escapeHtml(t.name)}</strong>
-                        ${t.blockerNote ? `<br><span style="font-size:0.8125rem;">${this.escapeHtml(t.blockerNote)}</span>` : ''}</div>`;
-                });
-                html += '</div>';
+            if (showUpcoming) {
+                const upcoming = this.getUpcomingItems();
+                if (upcoming.length > 0) {
+                    html += '<div class="report-section">';
+                    html += '<div class="report-section-title"><i class="fas fa-calendar" style="color:var(--info);"></i> Coming Up</div>';
+                    upcoming.forEach(t => {
+                        html += `<div class="report-item"><i class="fas fa-circle" style="color:var(--info);font-size:0.5rem;margin-top:6px;"></i>
+                            <span>${this.escapeHtml(t.name)} <span style="color:var(--text-muted);font-size:0.75rem;">(due ${this.formatDateShort(t.dueDate)})</span></span></div>`;
+                    });
+                    html += '</div>';
+                }
             }
-        }
 
-        // Activity Highlights
-        if (showActivities) {
-            const activities = this.getActivitiesInRange(from, to).slice(0, 15);
-            if (activities.length > 0) {
-                html += '<div class="report-section">';
-                html += '<div class="report-section-title"><i class="fas fa-clock" style="color:var(--accent);"></i> Activity Highlights</div>';
-                activities.forEach(a => {
-                    const project = a.projectId ? this.getProject(a.projectId) : null;
-                    html += `<div class="report-item"><span class="category-badge ${a.category}" style="margin-top:2px;">${this.escapeHtml(a.category)}</span>
-                        <span>${this.escapeHtml(a.entry)} ${project ? `<span class="tag">${this.escapeHtml(project.name)}</span>` : ''}
-                        <span style="color:var(--text-muted);font-size:0.75rem;">${this.formatDateShort(a.date)}</span></span></div>`;
-                });
-                html += '</div>';
+            if (showBlockers) {
+                const blockers = this.getBlockers();
+                if (blockers.length > 0) {
+                    html += '<div class="report-section">';
+                    html += '<div class="report-section-title"><i class="fas fa-exclamation-triangle" style="color:var(--danger);"></i> Blockers</div>';
+                    blockers.forEach(t => {
+                        html += `<div class="report-blocker"><strong>${this.escapeHtml(t.name)}</strong>
+                            ${t.blockerNote ? `<br><span style="font-size:0.8125rem;">${this.escapeHtml(t.blockerNote)}</span>` : ''}</div>`;
+                    });
+                    html += '</div>';
+                }
             }
-        }
 
-        // Value Delivered
-        if (showMetrics) {
-            const metricsSummary = this.getMetricsSummary();
-            if (metricsSummary.length > 0) {
-                const cum = this.getCumulativeMetrics();
-                html += '<div class="report-section">';
-                html += '<div class="report-section-title"><i class="fas fa-chart-line" style="color:var(--accent);"></i> Value Delivered</div>';
-                html += `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-bottom:12px;">
-                    <div class="stat-card" style="padding:12px;"><div class="stat-value" style="font-size:1.25rem;">${cum.totalSavedWeek.toFixed(1)}h</div><div class="stat-label">saved/week</div></div>
-                    <div class="stat-card" style="padding:12px;"><div class="stat-value" style="font-size:1.25rem;">${cum.totalSavedYear.toFixed(0)}h</div><div class="stat-label">saved/year</div></div>
-                    <div class="stat-card" style="padding:12px;"><div class="stat-value" style="font-size:1.25rem;">${cum.totalPeople}</div><div class="stat-label">people impacted</div></div>
-                </div>`;
-                metricsSummary.forEach(m => {
-                    html += `<div class="report-item"><i class="fas fa-chart-bar" style="color:var(--primary);margin-top:2px;"></i>
-                        <span><strong>${this.escapeHtml(m.projectName)}</strong>: ${m.weekSaved.toFixed(1)}h/week saved (${(m.roi * 100).toFixed(0)}% ROI)</span></div>`;
-                });
-                html += '</div>';
+            if (showActivities) {
+                const activities = this.getActivitiesInRange(from, to).slice(0, 15);
+                if (activities.length > 0) {
+                    html += '<div class="report-section">';
+                    html += '<div class="report-section-title"><i class="fas fa-clock" style="color:var(--accent);"></i> Activity Highlights</div>';
+                    activities.forEach(a => {
+                        const project = a.projectId ? this.getProject(a.projectId) : null;
+                        html += `<div class="report-item"><span class="category-badge ${a.category}" style="margin-top:2px;">${this.escapeHtml(a.category)}</span>
+                            <span>${this.escapeHtml(a.entry)} ${project ? `<span class="tag">${this.escapeHtml(project.name)}</span>` : ''}
+                            <span style="color:var(--text-muted);font-size:0.75rem;">${this.formatDateShort(a.date)}</span></span></div>`;
+                    });
+                    html += '</div>';
+                }
+            }
+
+            if (showMetrics) {
+                const metricsSummary = this.getMetricsSummary();
+                if (metricsSummary.length > 0) {
+                    const cum = this.getCumulativeMetrics();
+                    html += '<div class="report-section">';
+                    html += '<div class="report-section-title"><i class="fas fa-chart-line" style="color:var(--accent);"></i> Value Delivered</div>';
+                    html += `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-bottom:12px;">
+                        <div class="stat-card" style="padding:12px;"><div class="stat-value" style="font-size:1.25rem;">${cum.totalSavedWeek.toFixed(1)}h</div><div class="stat-label">saved/week</div></div>
+                        <div class="stat-card" style="padding:12px;"><div class="stat-value" style="font-size:1.25rem;">${cum.totalSavedYear.toFixed(0)}h</div><div class="stat-label">saved/year</div></div>
+                        <div class="stat-card" style="padding:12px;"><div class="stat-value" style="font-size:1.25rem;">${cum.totalPeople}</div><div class="stat-label">people impacted</div></div>
+                    </div>`;
+                    metricsSummary.forEach(m => {
+                        html += `<div class="report-item"><i class="fas fa-chart-bar" style="color:var(--primary);margin-top:2px;"></i>
+                            <span><strong>${this.escapeHtml(m.projectName)}</strong>: ${m.weekSaved.toFixed(1)}h/week saved (${(m.roi * 100).toFixed(0)}% ROI)</span></div>`;
+                    });
+                    html += '</div>';
+                }
             }
         }
 
@@ -2247,7 +2608,7 @@ class WorkPulseApp {
         if (printBtn) printBtn.style.display = 'inline-flex';
         if (mdBtn) mdBtn.style.display = 'inline-flex';
 
-        this._lastReport = { from, to, showCompleted, showProgress, showUpcoming, showBlockers, showActivities, showMetrics };
+        this._lastReport = { from, to, showCompleted, showProgress, showUpcoming, showBlockers, showActivities, showMetrics, showWorkLog };
     }
 
     printReport() {
@@ -2261,68 +2622,88 @@ class WorkPulseApp {
 
         let md = `# Status Update\n**${userName}** | ${this.formatDate(from)} - ${this.formatDate(to)}\n\n`;
 
-        if (this._lastReport.showCompleted) {
-            const completed = this.getCompletedInRange(from, to);
-            md += '## Completed\n';
-            if (completed.length === 0) {
-                md += '_No tasks completed in this period._\n\n';
-            } else {
-                const byProject = {};
-                completed.forEach(t => {
-                    const pName = this.getProject(t.projectId)?.name || 'No Project';
-                    if (!byProject[pName]) byProject[pName] = [];
-                    byProject[pName].push(t);
-                });
-                for (const [pName, tasks] of Object.entries(byProject)) {
-                    md += `\n**${pName}**\n`;
-                    tasks.forEach(t => { md += `- ${t.name}\n`; });
+        if (this._lastReport.showWorkLog) {
+            md += this.generateWorkLogMarkdown(from, to);
+        } else {
+            if (this._lastReport.showCompleted) {
+                const completed = this.getCompletedInRange(from, to);
+                md += '## Completed\n';
+                if (completed.length === 0) {
+                    md += '_No tasks completed in this period._\n\n';
+                } else {
+                    const byProject = {};
+                    completed.forEach(t => {
+                        const pName = this.getProject(t.projectId)?.name || 'No Project';
+                        if (!byProject[pName]) byProject[pName] = [];
+                        byProject[pName].push(t);
+                    });
+                    for (const [pName, tasks] of Object.entries(byProject)) {
+                        md += `\n**${pName}**\n`;
+                        tasks.forEach(t => { md += `- ${t.name}\n`; });
+                    }
+                    md += '\n';
                 }
-                md += '\n';
+
+                const rejected = this.getRejectedInRange(from, to);
+                if (rejected.length > 0) {
+                    md += '## Rejected / Pivoted\n';
+                    const byProject = {};
+                    rejected.forEach(t => {
+                        const pName = this.getProject(t.projectId)?.name || 'No Project';
+                        if (!byProject[pName]) byProject[pName] = [];
+                        byProject[pName].push(t);
+                    });
+                    for (const [pName, tasks] of Object.entries(byProject)) {
+                        md += `\n**${pName}**\n`;
+                        tasks.forEach(t => { md += `- ~~${t.name}~~\n`; });
+                    }
+                    md += '\n';
+                }
             }
-        }
 
-        if (this._lastReport.showProgress) {
-            const inProgress = this.getInProgressItems();
-            md += '## In Progress\n';
-            inProgress.forEach(t => {
-                const project = this.getProject(t.projectId);
-                md += `- ${t.name}${project ? ` (${project.name})` : ''}\n`;
-            });
-            md += '\n';
-        }
-
-        if (this._lastReport.showBlockers) {
-            const blockers = this.getBlockers();
-            if (blockers.length > 0) {
-                md += '## Blockers\n';
-                blockers.forEach(t => {
-                    md += `- **${t.name}**${t.blockerNote ? `: ${t.blockerNote}` : ''}\n`;
+            if (this._lastReport.showProgress) {
+                const inProgress = this.getInProgressItems();
+                md += '## In Progress\n';
+                inProgress.forEach(t => {
+                    const project = this.getProject(t.projectId);
+                    md += `- ${t.name}${project ? ` (${project.name})` : ''}\n`;
                 });
                 md += '\n';
             }
-        }
 
-        if (this._lastReport.showActivities) {
-            const activities = this.getActivitiesInRange(from, to).slice(0, 15);
-            if (activities.length > 0) {
-                md += '## Activity Highlights\n';
-                activities.forEach(a => {
-                    md += `- [${a.category}] ${a.entry} (${this.formatDateShort(a.date)})\n`;
-                });
-                md += '\n';
+            if (this._lastReport.showBlockers) {
+                const blockers = this.getBlockers();
+                if (blockers.length > 0) {
+                    md += '## Blockers\n';
+                    blockers.forEach(t => {
+                        md += `- **${t.name}**${t.blockerNote ? `: ${t.blockerNote}` : ''}\n`;
+                    });
+                    md += '\n';
+                }
             }
-        }
 
-        if (this._lastReport.showMetrics) {
-            const metricsSummary = this.getMetricsSummary();
-            if (metricsSummary.length > 0) {
-                const cum = this.getCumulativeMetrics();
-                md += '## Value Delivered\n';
-                md += `- **${cum.totalSavedWeek.toFixed(1)}h** saved/week | **${cum.totalSavedYear.toFixed(0)}h** saved/year | **${cum.totalPeople}** people impacted\n`;
-                metricsSummary.forEach(m => {
-                    md += `- ${m.projectName}: ${m.weekSaved.toFixed(1)}h/week saved (${(m.roi * 100).toFixed(0)}% ROI)\n`;
-                });
-                md += '\n';
+            if (this._lastReport.showActivities) {
+                const activities = this.getActivitiesInRange(from, to).slice(0, 15);
+                if (activities.length > 0) {
+                    md += '## Activity Highlights\n';
+                    activities.forEach(a => {
+                        md += `- [${a.category}] ${a.entry} (${this.formatDateShort(a.date)})\n`;
+                    });
+                    md += '\n';
+                }
+            }
+
+            if (this._lastReport.showMetrics) {
+                const metricsSummary = this.getMetricsSummary();
+                if (metricsSummary.length > 0) {
+                    const cum = this.getCumulativeMetrics();
+                    md += '## Value Delivered\n';
+                    md += `- **${cum.totalSavedWeek.toFixed(1)}h** saved/week | **${cum.totalSavedYear.toFixed(0)}h** saved/year | **${cum.totalPeople}** people impacted\n`;
+                    metricsSummary.forEach(m => {
+                        md += `- ${m.projectName}: ${m.weekSaved.toFixed(1)}h/week saved (${(m.roi * 100).toFixed(0)}% ROI)\n`;
+                    });
+                    md += '\n';
+                }
             }
         }
 
@@ -2353,7 +2734,8 @@ class WorkPulseApp {
             upcoming: document.getElementById('report-show-upcoming'),
             blockers: document.getElementById('report-show-blockers'),
             activities: document.getElementById('report-show-activities'),
-            metrics: document.getElementById('report-show-metrics')
+            metrics: document.getElementById('report-show-metrics'),
+            worklog: document.getElementById('report-show-worklog')
         };
 
         switch (preset) {
@@ -2370,21 +2752,23 @@ class WorkPulseApp {
                 if (checkboxes.blockers) checkboxes.blockers.checked = true;
                 if (checkboxes.activities) checkboxes.activities.checked = false;
                 if (checkboxes.metrics) checkboxes.metrics.checked = false;
+                if (checkboxes.worklog) checkboxes.worklog.checked = false;
                 break;
 
             case 'one-on-one':
-                // Last 2 weeks
+                // Last 2 weeks — Work Log is the primary view
                 from = new Date(today);
                 from.setDate(today.getDate() - 14);
                 if (datePreset) datePreset.value = 'last-2-weeks';
                 if (fromField) fromField.value = this.toLocalDateString(from);
                 if (toField) toField.value = this.toLocalDateString(today);
-                if (checkboxes.completed) checkboxes.completed.checked = true;
-                if (checkboxes.progress) checkboxes.progress.checked = true;
+                if (checkboxes.completed) checkboxes.completed.checked = false;
+                if (checkboxes.progress) checkboxes.progress.checked = false;
                 if (checkboxes.upcoming) checkboxes.upcoming.checked = false;
-                if (checkboxes.blockers) checkboxes.blockers.checked = true;
+                if (checkboxes.blockers) checkboxes.blockers.checked = false;
                 if (checkboxes.activities) checkboxes.activities.checked = false;
                 if (checkboxes.metrics) checkboxes.metrics.checked = true;
+                if (checkboxes.worklog) checkboxes.worklog.checked = true;
                 break;
 
             case 'monthly':
@@ -2480,11 +2864,12 @@ class WorkPulseApp {
         if (!container) return;
 
         const today = this.toLocalDateString();
+        const terminalStatuses = ['done', 'rejected'];
         const focusTasks = this.data.tasks.filter(t => {
-            if (t.status === 'done' && t.completedAt && t.completedAt.slice(0, 10) === today) return true;
+            if (terminalStatuses.includes(t.status) && t.completedAt && t.completedAt.slice(0, 10) === today) return true;
             if (t.status === 'in-progress') return true;
-            if (t.dueDate === today && t.status !== 'done') return true;
-            if (t.dueDate && t.dueDate < today && t.status !== 'done') return true;
+            if (t.dueDate === today && !terminalStatuses.includes(t.status)) return true;
+            if (t.dueDate && t.dueDate < today && !terminalStatuses.includes(t.status)) return true;
             return false;
         });
 
@@ -2493,12 +2878,12 @@ class WorkPulseApp {
             return;
         }
 
-        const doneCount = focusTasks.filter(t => t.status === 'done').length;
+        const closedCount = focusTasks.filter(t => terminalStatuses.includes(t.status)).length;
 
         let html = `<div class="today-focus-card">
             <div class="today-focus-header">
                 <h3><i class="fas fa-crosshairs"></i> Today's Focus</h3>
-                <span class="today-focus-count">${doneCount}/${focusTasks.length} done</span>
+                <span class="today-focus-count">${closedCount}/${focusTasks.length} closed</span>
             </div>`;
 
         if (focusTasks.length === 0) {
@@ -2506,17 +2891,21 @@ class WorkPulseApp {
         } else {
             html += '<ul class="today-focus-list">';
             focusTasks.sort((a, b) => {
-                if (a.status === 'done' && b.status !== 'done') return 1;
-                if (a.status !== 'done' && b.status === 'done') return -1;
-                return 0;
+                const aTerminal = terminalStatuses.includes(a.status) ? 1 : 0;
+                const bTerminal = terminalStatuses.includes(b.status) ? 1 : 0;
+                return aTerminal - bTerminal;
             }).forEach(t => {
                 const isDone = t.status === 'done';
-                const isOverdue = t.dueDate && t.dueDate < today && !isDone;
+                const isRejected = t.status === 'rejected';
+                const isTerminal = isDone || isRejected;
+                const isOverdue = t.dueDate && t.dueDate < today && !isTerminal;
                 const project = this.getProject(t.projectId);
-                html += `<li class="today-focus-item ${isDone ? 'is-done' : ''}">
+                const itemClass = isDone ? 'is-done' : isRejected ? 'is-rejected' : '';
+                html += `<li class="today-focus-item ${itemClass}">
                     <input type="checkbox" ${isDone ? 'checked' : ''} onchange="app.toggleTodayTask('${this.escapeHtml(t.id)}')">
                     ${isOverdue ? '<span class="overdue-dot" title="Overdue"></span>' : ''}
                     <span class="task-label">${this.escapeHtml(t.name)}</span>
+                    <span class="status-dot ${t.status} status-badge-clickable" data-task-id="${this.escapeHtml(t.id)}" title="Change status" onclick="event.stopPropagation();app.showStatusPicker('${this.escapeHtml(t.id)}',this)"></span>
                     ${project ? `<span class="task-project">${this.escapeHtml(project.name)}</span>` : ''}
                 </li>`;
             });
@@ -2538,7 +2927,7 @@ class WorkPulseApp {
         const task = this.data.tasks.find(t => t.id === taskId);
         if (!task) return;
         const now = new Date().toISOString();
-        if (task.status === 'done') {
+        if (task.status === 'done' || task.status === 'rejected') {
             task.status = 'in-progress';
             task.completedAt = null;
         } else {
@@ -2594,7 +2983,7 @@ class WorkPulseApp {
 
         container.innerHTML = active.map(p => {
             const tasks = this.data.tasks.filter(t => t.projectId === p.id);
-            const done = tasks.filter(t => t.status === 'done').length;
+            const done = tasks.filter(t => t.status === 'done' || t.status === 'rejected').length;
             const pct = tasks.length > 0 ? Math.round((done / tasks.length) * 100) : 0;
             return `<div style="display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--border);">
                 <div style="width:8px;height:8px;border-radius:50%;background:${this.escapeHtml(p.color || '#0d9488')};flex-shrink:0;"></div>
@@ -2616,7 +3005,8 @@ class WorkPulseApp {
             'this-week': this.data.tasks.filter(t => t.status === 'this-week').length,
             'in-progress': this.data.tasks.filter(t => t.status === 'in-progress').length,
             blocked: this.data.tasks.filter(t => t.status === 'blocked').length,
-            done: this.data.tasks.filter(t => t.status === 'done').length
+            done: this.data.tasks.filter(t => t.status === 'done').length,
+            rejected: this.data.tasks.filter(t => t.status === 'rejected').length
         };
 
         const isDark = this.data.settings.theme === 'dark';
@@ -2624,10 +3014,10 @@ class WorkPulseApp {
         const gridColor = isDark ? '#334155' : '#e2e8f0';
 
         const data = {
-            labels: ['Backlog', 'This Week', 'In Progress', 'Blocked', 'Done'],
+            labels: ['Backlog', 'This Week', 'In Progress', 'Blocked', 'Done', 'Rejected'],
             datasets: [{
                 data: Object.values(statusCounts),
-                backgroundColor: ['#94a3b8', '#2563eb', '#0d9488', '#dc2626', '#16a34a'],
+                backgroundColor: ['#94a3b8', '#2563eb', '#0d9488', '#dc2626', '#16a34a', '#78716c'],
                 borderRadius: 6,
                 borderWidth: 0
             }]
@@ -2743,7 +3133,7 @@ class WorkPulseApp {
         if (!container) return;
 
         const upcoming = this.data.tasks
-            .filter(t => t.dueDate && t.status !== 'done')
+            .filter(t => t.dueDate && t.status !== 'done' && t.status !== 'rejected')
             .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
             .slice(0, 5);
 
@@ -2815,6 +3205,11 @@ class WorkPulseApp {
             t.completedAt >= weekStart && t.completedAt <= weekEnd + 'T23:59:59'
         ).map(t => t.id);
 
+        const rejected = this.data.tasks.filter(t =>
+            t.status === 'rejected' && t.completedAt &&
+            t.completedAt >= weekStart && t.completedAt <= weekEnd + 'T23:59:59'
+        ).map(t => t.id);
+
         const inProgress = this.data.tasks.filter(t =>
             t.status === 'in-progress' || t.status === 'this-week'
         ).map(t => t.id);
@@ -2827,14 +3222,15 @@ class WorkPulseApp {
             t.status === 'blocked'
         ).map(t => t.id);
 
-        const summary = this.buildSnapshotSummary(completed, inProgress, newTasks, stuck);
+        const summary = this.buildSnapshotSummary(completed, rejected, inProgress, newTasks, stuck);
 
-        return { weekStart, weekEnd, completed, inProgress, newTasks, stuck, summary };
+        return { weekStart, weekEnd, completed, rejected, inProgress, newTasks, stuck, summary };
     }
 
-    buildSnapshotSummary(completed, inProgress, newTasks, stuck) {
+    buildSnapshotSummary(completed, rejected, inProgress, newTasks, stuck) {
         const parts = [];
         if (completed.length > 0) parts.push(`Completed ${completed.length} task${completed.length !== 1 ? 's' : ''}`);
+        if (rejected.length > 0) parts.push(`${rejected.length} rejected/pivoted`);
         if (inProgress.length > 0) parts.push(`${inProgress.length} in progress`);
         if (newTasks.length > 0) parts.push(`${newTasks.length} new task${newTasks.length !== 1 ? 's' : ''} added`);
         if (stuck.length > 0) parts.push(`${stuck.length} blocked`);
@@ -2888,11 +3284,13 @@ class WorkPulseApp {
 
         snapshots.forEach((s, idx) => {
             const completedNames = s.completed.map(id => this.data.tasks.find(t => t.id === id)?.name).filter(Boolean);
+            const rejectedNames = (s.rejected || []).map(id => this.data.tasks.find(t => t.id === id)?.name).filter(Boolean);
             const stuckNames = s.stuck.map(id => this.data.tasks.find(t => t.id === id)?.name).filter(Boolean);
 
             // Compute deltas vs the next (older) snapshot
             const prev = snapshots[idx + 1];
             const cDelta = prev ? s.completed.length - prev.completed.length : 0;
+            const rDelta = prev ? (s.rejected || []).length - (prev.rejected || []).length : 0;
             const ipDelta = prev ? s.inProgress.length - prev.inProgress.length : 0;
             const nDelta = prev ? s.newTasks.length - prev.newTasks.length : 0;
             const sDelta = prev ? s.stuck.length - prev.stuck.length : 0;
@@ -2907,6 +3305,10 @@ class WorkPulseApp {
                         ${completedNames.slice(0, 3).map(n => `<div style="font-size:0.75rem;">${this.escapeHtml(n)}</div>`).join('')}
                         ${completedNames.length > 3 ? `<div style="font-size:0.75rem;color:var(--text-muted);">+${completedNames.length - 3} more</div>` : ''}
                     </div>
+                    ${rejectedNames.length > 0 ? `<div class="snapshot-section" style="background:var(--bg-hover);">
+                        <div class="snapshot-section-label"><span class="badge badge-muted">${rejectedNames.length}</span> Rejected ${prev ? this.renderDelta(rDelta, true) : ''}</div>
+                        ${rejectedNames.slice(0, 2).map(n => `<div style="font-size:0.75rem;font-style:italic;">${this.escapeHtml(n)}</div>`).join('')}
+                    </div>` : ''}
                     <div class="snapshot-section in-progress">
                         <div class="snapshot-section-label"><span class="badge badge-info">${s.inProgress.length}</span> In Progress ${prev ? this.renderDelta(ipDelta) : ''}</div>
                     </div>
@@ -3060,6 +3462,10 @@ class WorkPulseApp {
                 if (e.key === 'ArrowDown') { e.preventDefault(); this.navigateCommand(1); }
                 if (e.key === 'ArrowUp') { e.preventDefault(); this.navigateCommand(-1); }
                 if (e.key === 'Enter') { e.preventDefault(); this.executeSelectedCommand(); }
+                if (e.key === 'Tab') {
+                    e.preventDefault();
+                    this.executeSelectedCommandStatusPicker();
+                }
             });
         }
     }
@@ -3110,12 +3516,12 @@ class WorkPulseApp {
 
         // Projects
         this.data.projects.forEach(p => {
-            commands.push({ label: p.name, icon: 'fa-folder', keywords: `project ${(p.tags || []).join(' ')}`, action: () => this.viewProjectDetail(p.id), hint: 'Project' });
+            commands.push({ label: p.name, icon: 'fa-folder', keywords: `project ${(p.tags || []).join(' ')}`, action: () => this.viewProjectDetail(p.id), hint: 'Tab=Status', projectId: p.id });
         });
 
         // Tasks
         this.data.tasks.forEach(t => {
-            commands.push({ label: t.name, icon: 'fa-check-square', keywords: `task ${t.status}`, action: () => this.editTask(t.id), hint: 'Task' });
+            commands.push({ label: t.name, icon: 'fa-check-square', keywords: `task ${t.status}`, action: () => this.editTask(t.id), hint: 'Tab=Status', taskId: t.id });
         });
 
         return commands;
@@ -3184,6 +3590,22 @@ class WorkPulseApp {
         }
     }
 
+    executeSelectedCommandStatusPicker() {
+        if (!this._filteredCommands || this._filteredCommands.length === 0) return;
+        const cmd = this._filteredCommands[this.commandPaletteIndex];
+        if (cmd && (cmd.taskId || cmd.projectId)) {
+            this.closeCommandPalette();
+            requestAnimationFrame(() => {
+                const anchor = document.querySelector('.command-palette') || document.body;
+                if (cmd.taskId) {
+                    this.showStatusPicker(cmd.taskId, anchor, 'task');
+                } else {
+                    this.showStatusPicker(cmd.projectId, anchor, 'project');
+                }
+            });
+        }
+    }
+
     // ========================================
     // Keyboard Shortcuts
     // ========================================
@@ -3225,6 +3647,147 @@ class WorkPulseApp {
     hideShortcutsOverlay() {
         const overlay = document.getElementById('shortcuts-overlay');
         if (overlay) overlay.classList.remove('active');
+    }
+
+    // ========================================
+    // Status Picker Popover
+    // ========================================
+    setupStatusPicker() {
+        this._statusPickerEntityId = null;
+        this._statusPickerType = null; // 'task' or 'project'
+
+        const picker = document.getElementById('status-picker');
+        if (!picker) return;
+
+        picker.addEventListener('click', (e) => {
+            const opt = e.target.closest('.status-picker-option');
+            if (opt && this._statusPickerEntityId) {
+                this.applyStatusFromPicker(this._statusPickerEntityId, opt.dataset.status, this._statusPickerType);
+            }
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!picker.classList.contains('active')) return;
+            if (e.target.closest('#status-picker') || e.target.closest('.status-badge-clickable')) return;
+            this.hideStatusPicker();
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && picker.classList.contains('active')) {
+                this.hideStatusPicker();
+            }
+        });
+    }
+
+    getStatusOptions(type) {
+        if (type === 'project') {
+            return [
+                { key: 'active', label: 'Active' },
+                { key: 'on-hold', label: 'On Hold' },
+                { key: 'completed', label: 'Completed' },
+                { key: 'archived', label: 'Archived' }
+            ];
+        }
+        return [
+            { key: 'backlog', label: 'Backlog' },
+            { key: 'this-week', label: 'This Week' },
+            { key: 'in-progress', label: 'In Progress' },
+            { key: 'blocked', label: 'Blocked' },
+            { key: 'done', label: 'Done' },
+            { key: 'rejected', label: 'Rejected' }
+        ];
+    }
+
+    showStatusPicker(entityId, anchorEl, type = 'task') {
+        const picker = document.getElementById('status-picker');
+        if (!picker) return;
+
+        const entity = type === 'project'
+            ? this.data.projects.find(p => p.id === entityId)
+            : this.data.tasks.find(t => t.id === entityId);
+        if (!entity) return;
+
+        this._statusPickerEntityId = entityId;
+        this._statusPickerType = type;
+
+        // Populate options dynamically
+        const options = this.getStatusOptions(type);
+        picker.innerHTML = options.map(o =>
+            `<div class="status-picker-option ${o.key === entity.status ? 'current' : ''}" data-status="${o.key}" role="option">
+                <span class="status-dot ${o.key}"></span> ${o.label}
+            </div>`
+        ).join('');
+
+        // Position near anchor
+        const rect = anchorEl.getBoundingClientRect();
+        const pickerW = 160;
+        const pickerH = options.length * 38 + 8;
+        let left = rect.left + rect.width / 2 - pickerW / 2;
+        let top = rect.bottom + 4;
+
+        if (left < 8) left = 8;
+        if (left + pickerW > window.innerWidth - 8) left = window.innerWidth - pickerW - 8;
+        if (top + pickerH > window.innerHeight - 8) top = rect.top - pickerH - 4;
+
+        picker.style.left = left + 'px';
+        picker.style.top = top + 'px';
+        picker.classList.add('active');
+    }
+
+    hideStatusPicker() {
+        const picker = document.getElementById('status-picker');
+        if (picker) picker.classList.remove('active');
+        this._statusPickerEntityId = null;
+        this._statusPickerType = null;
+    }
+
+    applyStatusFromPicker(entityId, newStatus, type = 'task') {
+        if (type === 'project') {
+            this.applyProjectStatusFromPicker(entityId, newStatus);
+            return;
+        }
+        const task = this.data.tasks.find(t => t.id === entityId);
+        if (!task || task.status === newStatus) {
+            this.hideStatusPicker();
+            return;
+        }
+        this.moveTaskStatus(entityId, newStatus);
+        this.hideStatusPicker();
+        this.saveData();
+
+        this.renderPage(this.currentPage);
+        this.renderStreakWidget();
+
+        const detailModal = document.getElementById('project-detail-modal');
+        if (detailModal && detailModal.classList.contains('active') && task.projectId) {
+            this.viewProjectDetail(task.projectId);
+        }
+
+        const labels = { backlog: 'Backlog', 'this-week': 'This Week', 'in-progress': 'In Progress', blocked: 'Blocked', done: 'Done', rejected: 'Rejected' };
+        this.showToast(`Task moved to ${labels[newStatus] || newStatus}`, 'success');
+    }
+
+    applyProjectStatusFromPicker(projectId, newStatus) {
+        const project = this.data.projects.find(p => p.id === projectId);
+        if (!project || project.status === newStatus) {
+            this.hideStatusPicker();
+            return;
+        }
+        project.status = newStatus;
+        project.updatedAt = new Date().toISOString();
+        this.hideStatusPicker();
+        this.saveData();
+
+        this.renderPage(this.currentPage);
+
+        // Re-render project detail modal if open
+        const detailModal = document.getElementById('project-detail-modal');
+        if (detailModal && detailModal.classList.contains('active')) {
+            this.viewProjectDetail(projectId);
+        }
+
+        const labels = { active: 'Active', 'on-hold': 'On Hold', completed: 'Completed', archived: 'Archived' };
+        this.showToast(`Project moved to ${labels[newStatus] || newStatus}`, 'success');
     }
 }
 
